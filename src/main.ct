@@ -1,9 +1,10 @@
-(cl:defpackage #:parse
+(cl:defpackage #:parsenip
   (:use
    #:coalton
    #:coalton-prelude
    #:coalton/math/integral)
   (:import-from #:coalton/experimental/loops
+   #:doiter
    #:dorange
    #:dotimes)
   (:local-nicknames
@@ -13,12 +14,13 @@
    (:la #:coalton/lisparray)
    (:v #:coalton/vector)
    (:f #:coalton/format)
+   (:fl #:coalton/file)
    (:c #:coalton/cell)
    (:s #:coalton/string)
    (:b #:coalton/bits)
    ))
 
-(cl:in-package #:parse)
+(cl:in-package #:parsenip)
 
 (named-readtables:in-readtable coalton:coalton)
 
@@ -288,15 +290,23 @@ transformed to an `:r`."
   (define-class (Accumulator :a :f (:a -> :f) (:f -> :a))
     "A type that can accumulate values and then finalize the accumulation. Is allowed to
 mutate internally."
-    (initial-accumulator (Void -> :a :t))
+    (initial-accumulator (&key (:initial (Optional (:a :t))) -> :a :t))
+    (initial-accumulator-with (:t -> :a :t))
     (accumulate (:a :t * :t -> :a :t))
     (finalize (:a :t -> :f :t))))
 
 (coalton-toplevel
   (define-instance (Accumulator List List)
     (inline)
-    (define (initial-accumulator)
-      Nil)
+    (define (initial-accumulator &key (initial None)) 
+      (match initial
+        ((Some lst)
+         lst)
+        ((None)
+         Nil)))
+    (inline)
+    (define (initial-accumulator-with init)
+      [init])
     (inline)
     (define (accumulate lst t)
       (Cons t lst))
@@ -305,8 +315,15 @@ mutate internally."
   ;; TODO: Add a FrozenVector type or something
   (define-instance (Accumulator Vector Vector)
     (inline)
-    (define (initial-accumulator)
-      (v:new))
+    (define (initial-accumulator &key (initial None))
+      (match initial
+        ((None)
+         (v:new))
+        ((Some vec)
+         (v:copy vec))))
+    (inline)
+    (define (initial-accumulator-with init)
+      [init])      
     (inline)
     (define (accumulate vec t)
       (v:push! t vec)
@@ -362,6 +379,21 @@ mutate internally."
     (inline)
     (define (curse vec i)
       (v:index i vec))))
+
+(coalton-toplevel
+  (define-instance (Source String UFix Char)
+    (inline)
+    (define (initial-cursor _)
+      0)
+    (inline)
+    (define (advance-n s i n)
+      (let next = (+ i n))
+      (if (> next (s:length s))
+          None
+          (Some next)))
+    (inline)
+    (define (curse s i)
+      (s:ref s i))))
 
 (coalton-toplevel
   (define-instance (Source (BufferedSource :t) UFix :t)
@@ -475,40 +507,50 @@ if it does not."
              (on-s s c2 t)
              (on-rec s c Nil "Token failed to satisfy predicate."))))))
 
+  ;; TODO: Convert this to loop or... make tail recursive jesus christ
+  (declare parse-into (Accumulator :a :f => :a :t * Parser :s :c :r :t -> Parser :s :c :r (:a :t)))
+  (define (parse-into acc p)
+    "Run `p` until it fails, accumulating the results into `acc`."
+    (Parser%
+     (fn (s c on-un _on-rec on-s)
+       (let acc = (c:new acc))
+       (let last-successful-c = (c:new c))
+       (let ((on-inner-rec
+               (fn (s _ _ _)
+                 (on-s s (c:read last-successful-c) (c:read acc))))
+             (on-inner-s
+               (fn (s c t)
+                 (c:write! acc (accumulate (c:read acc) t))
+                 (c:write! last-successful-c c)
+                 (run-parser% p s c on-un on-inner-rec on-inner-s))))
+         (run-parser% p s c on-un on-inner-rec on-inner-s)))))
+
   (declare many (Accumulator :a :f => Parser :s :c :r :t -> Parser :s :c :r (:f :t)))
   (define (many p)
     "Repeat `p` until it fails, returning its results."
-    (Parser%
-     (fn (s c on-un _on-rec on-s)
-       (let accum = (c:new (initial-accumulator)))
-       (let ((on-inner-rec
-                (fn (s c _ _)
-                  (on-s s c (finalize (c:read accum)))))
-             (on-inner-s
-               (fn (s c t)
-                 (c:write! accum (accumulate (c:read accum) t))
-                 (run-parser% p s c on-un on-inner-rec on-inner-s))))
-         (run-parser% p s c on-un on-inner-rec on-inner-s)))))
+    (let acc = (initial-accumulator))
+    (map finalize (parse-into acc p)))
 
   (declare many1 (Accumulator :a :f => Parser :s :c :r :t -> Parser :s :c :r (:f :t)))
   (define (many1 p)
     "Repeat `p` until it fails, returning its results. Must succeed at least once."
-    (Parser%
-     (fn (s c on-un on-rec on-s)
-       (run-parser%
-        p s c on-un ƒs_xe.(on-rec s c (Cons "Expected at least 1 success." x) e)
-        (fn (s c2 t1)
-          (let accum = (c:new
-                        (accumulate (initial-accumulator)
-                                    t1)))
-          (let ((on-inner-rec
-                  (fn (s c _ _)
-                    (on-s s c (finalize (c:read accum)))))
-                (on-inner-s
-                  (fn (s c t)
-                    (c:write! accum (accumulate (c:read accum) t))
-                    (run-parser% p s c on-un on-inner-rec on-inner-s))))
-            (run-parser% p s c2 on-un on-inner-rec on-inner-s)))))))
+    (do
+     (t <- (label "Expected at least 1 success." p))
+     (let acc = (initial-accumulator-with t))
+     (map finalize (parse-into acc p))))
+
+  (declare sep-by (Accumulator :a :f => Parser :s :c :r :t * Parser :s :c :r :x -> Parser :s :c :r (:f :t)))
+  (define (sep-by p sep)
+    "Parses zero or more occurences of `p`, separated by `sep`. Returns the values
+returned by `p`."
+    (do
+     (t <- (label "Expected at least 1 success." p))
+     (let acc = (initial-accumulator-with t))
+     (map finalize
+          (parse-into acc
+                      (do
+                       sep
+                       p)))))
   )
 
 ;;;
@@ -543,35 +585,49 @@ parsed."
 ;;; 
 
 (coalton-toplevel
-  (declare parse-source (Source :s :c :t => Parser :s :c :r :r * :s -> ParseResult :r))
-  (define (parse-source parser source)
+  (declare parse-source (Source :s :c :t => :s * Parser :s :c :r :r -> ParseResult :r))
+  (define (parse-source source parser)
     (run-parser% parser
                  source
                  (initial-cursor source)
                  ƒ__xe.(Err (Tuple x e))
                  ƒ__xe.(Err (Tuple x e))
-                 ƒ__r.(Ok r))))
+                 ƒ__r.(Ok r)))
+
+  (declare parse-file-chars! (fl:FileStream Char * Parser (BufferedSource Char) UFix :r :r -> ParseResult :r))
+  (define (parse-file-chars! fs parser)
+    "Parse `fs` using `parser`. Will consume the stream."
+    (let buf = (new-buffered-source ƒ.(into (fl:read-char fs))))
+    (parse-source buf parser))
+  )
 
 (coalton-toplevel
+
+  (declare parse-sep-ints (Void -> Parser String UFix (Vector Integer) (Vector Integer)))
+  (define (parse-sep-ints)
+    (sep-by (next-int) (next-if ƒc.(== c #\|))))
   
   (declare main (Void -> Void))
   (define (main)
-    (let tokens = (the (List Char)
-                       [#\- #\a #\2]))
-    (traceobject "Result"
-                 (parse-source (partial
-                                (take-left (next-int)
-                                           (eof)))
-                               tokens)))
+    (let strs = (v:make "1|2|3"
+                        "1|2|3abc2|3"
+                        "1|abc"
+                        "1|"
+                        "1"
+                        "1abc"))
+    (doiter (s strs)
+      (let result = (parse-source s (take-left (parse-sep-ints)
+                                               (eof))))
+      (lisp (-> :a) (s result)
+        (cl:format cl:t "~a: ~a~%" s result))
+      (values)))
 
-  (declare main-bs (Void -> Void))
-  (define (main-bs)
-    (let s = (new-buffered-source
-              ƒ.(Some #\a)))
-    (traceobject
-     "Result"
-     (parse-source (next)
-                   s))
-    ))
+  (declare main-file (Void -> Result fl:FileError (ParseResult (Vector Integer))))
+  (define (main-file)
+    (fl:with-open-file "file.txt"
+      (fn (fs)
+        (Ok (parse-file-chars! fs
+                               (sep-by (next-int) (next-if ƒc.(== c #\|))))))))
+  )
 
 (coalton (main))

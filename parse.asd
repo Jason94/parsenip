@@ -1,4 +1,4 @@
-(asdf:defsystem "parse"
+(asdf:defsystem "parsenip"
   :defsystem-depends-on ("coalton-asdf")
   :depends-on ("coalton" "coalton-io")
   :pathname "src/"
