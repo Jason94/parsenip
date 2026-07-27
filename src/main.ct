@@ -403,7 +403,7 @@ mutate internally."
     (inline)
     (define (advance-n s i n)
       (let next = (+ i n))
-      (if (fill-until% s next)
+      (if (fill-until% s (1- next))
           (Some next)
           None))
     (inline)
@@ -460,9 +460,12 @@ mutate internally."
     "Succeed if no tokens remain, fail otherwise."
     (Parser%
      (fn (s c _ on-rec on-s)
-       (if (none? (curse s c))
-           (on-s s c Unit)
-           (on-rec s c Nil "Expected EOF.")))))
+       (match (curse s c)
+         ((None)
+          (on-s s c Unit))
+         ((Some t)
+          (on-rec s c Nil (lisp (-> String) (t)
+                            (cl:format cl:nil "Expected EOF. Got: ~a" t))))))))
 
   (declare flatten-fail (Parser :s :c :r (Optional :t) -> Parser :s :c :r :t))
   (define (flatten-fail p)
@@ -531,6 +534,9 @@ if it does not."
     (let acc = (initial-accumulator))
     (map finalize (parse-into acc p)))
 
+  (declare many_ (Parser :s :c :r :t -> Parser :s :c :r (Vector :t)))
+  (define many_ many)
+
   (declare many1 (Accumulator :a :f => Parser :s :c :r :t -> Parser :s :c :r (:f :t)))
   (define (many1 p)
     "Repeat `p` until it fails, returning its results. Must succeed at least once."
@@ -564,6 +570,16 @@ returned by `p`."
     (or (ch:ascii-digit? c)
         (or (== c #\-)
             (== c #\+))))
+
+  (inline)
+  (declare ws-char? (Char -> Boolean))
+  (define (ws-char? c)
+    "Return True if `c` is a whitespace character. Included: space, newline, and tab."
+    (match c
+      (#\Space True)
+      (#\Newline True)
+      (#\Tab True)
+      (_ False)))
 
   (inline)
   (declare chars->str (Vector Char -> String))
@@ -603,13 +619,14 @@ parsed."
 
 (coalton-toplevel
 
-  (declare parse-sep-ints (Void -> Parser String UFix (Vector Integer) (Vector Integer)))
+  (declare parse-sep-ints (Source :s :c Char => Void -> Parser :s :c (Vector Integer) (Vector Integer)))
   (define (parse-sep-ints)
-    (sep-by (next-int) (next-if ƒc.(== c #\|))))
+    (label "Parsing '|' delimited integers"
+           (sep-by (next-int) (next-if ƒc.(== c #\|)))))
   
   (declare main (Void -> Void))
   (define (main)
-    (let strs = (v:make "1|2|3"
+    (let strs = (v:make "123|21|1"
                         "1|2|3abc2|3"
                         "1|abc"
                         "1|"
@@ -627,7 +644,11 @@ parsed."
     (fl:with-open-file "file.txt"
       (fn (fs)
         (Ok (parse-file-chars! fs
-                               (sep-by (next-int) (next-if ƒc.(== c #\|))))))))
+                               (take-left
+                                (parse-sep-ints)
+                                (label "Parsing final EOF"
+                                       (do
+                                        (many_ (next-if ws-char?))
+                                        (eof)))))))))
   )
 
-(coalton (main))
