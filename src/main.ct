@@ -3,6 +3,8 @@
    #:coalton
    #:coalton-prelude
    #:coalton/math/integral)
+  (:import-from #:serapeum
+   #:parse-float)
   (:import-from #:coalton/experimental/loops
    #:doiter
    #:dorange
@@ -18,6 +20,62 @@
    (:c #:coalton/cell)
    (:s #:coalton/string)
    (:b #:coalton/bits)
+   )
+  (:export
+   ;; BufferedSource
+   #:BufferedSource
+   #:new-buffered-source
+
+   ;; Accumulator
+   #:Accumulator
+   #:initial-accumulator
+   #:initial-accumulator-with
+   #:accumulate
+   #:finalize
+
+   ;; Source
+   #:Source
+   #:initial-cursor
+   #:advance-n
+   #:curse
+
+   ;; Parser type
+   #:ParseError
+   #:Context
+   #:ParseResult
+   #:Parser
+
+   ;; Combinators
+   #:partial
+   #:label
+   #:eof
+   #:flatten-fail
+   #:peek
+   #:next
+   #:next-if
+   #:parse-into
+   #:many
+   #:many_
+   #:many1
+   #:sep-by
+   #:sep-by1
+
+   ;; Parsing Text
+   #:int-char?
+   #:dec-char?
+   #:ws-char?
+   #:chars->str
+   #:parse-float?
+   
+   #:next-int
+   #:next-decimal
+
+   ;; Source Specific Parsers
+   #:reclaim
+
+   ;; Top-Level Runners
+   #:parse-source
+   #:parse-file-chars!
    ))
 
 (cl:in-package #:parsenip)
@@ -281,7 +339,6 @@ transformed to an `:r`."
                       on-s)))))
   )
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;           Accumulator             ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -391,8 +448,7 @@ mutate internally."
       (if (> next (s:length s))
           None
           (Some next)))
-    (inline)
-    (define (curse s i)
+    (inline) (define (curse s i)
       (s:ref s i))))
 
 (coalton-toplevel
@@ -549,6 +605,14 @@ if it does not."
   (define (sep-by p sep)
     "Parses zero or more occurences of `p`, separated by `sep`. Returns the values
 returned by `p`."
+    (alt
+     (sep-by1 p sep)
+     (pure (finalize (initial-accumulator)))))
+
+  (declare sep-by1 (Accumulator :a :f => Parser :s :c :r :t * Parser :s :c :r :x -> Parser :s :c :r (:f :t)))
+  (define (sep-by1 p sep)
+    "Parses zero or more occurences of `p`, separated by `sep`. Returns the values
+returned by `p`. Must succeed at least once."
     (do
      (t <- (label "Expected at least 1 success." p))
      (let acc = (initial-accumulator-with t))
@@ -567,9 +631,21 @@ returned by `p`."
   (inline)
   (declare int-char? (Char -> Boolean))
   (define (int-char? c)
-    (or (ch:ascii-digit? c)
-        (or (== c #\-)
-            (== c #\+))))
+    "Returns `True` if `c` could be part of a properly parsed integer. Includes digits,
+'+', and '-'."
+    (cond
+      ((ch:ascii-digit? c) True)
+      ((== c #\-) True)
+      ((== c #\+) True)
+      (True False)))
+
+  (inline)
+  (declare dec-char? (Char -> Boolean))
+  (define (dec-char? c)
+    "Returns `True` if `c` could be part of a properly parsed decimal. Includes digits,
+'+', '-', and '.'."
+    (or (int-char? c)
+        (== c #\.)))
 
   (inline)
   (declare ws-char? (Char -> Boolean))
@@ -589,12 +665,40 @@ returned by `p`."
   
   (declare next-int (Source :s :c Char => Void -> Parser :s :c :r Integer))
   (define (next-int)
-    "Parse the next signed integer. Accepts + or - signs. Fails if a valid integer is not
-parsed."
-    (label "Parsing next integer."
-           (flatten-fail
-            (map ƒc.(s:parse-int (chars->str c))
-                 (many1 (next-if int-char?)))))))
+    "Parse the next integer. Accepts + or - signs. Fails if a valid integer is not parsed."
+    (flatten-fail
+     (map ƒc.(s:parse-int (chars->str c))
+          (many1 (next-if int-char?)))))
+
+  (inline)
+  (declare parse-float? (String -> Optional F64))
+  (define (parse-float? s)
+    (catch (Some
+            (lisp (-> F64) (s)
+              (parse-float s :junk-allowed cl:nil :type 'cl:double-float)))
+      (_ None)))
+
+  (declare next-decimal (Source :s :c Char => Void -> Parser :s :c :r F64))
+  (define (next-decimal)
+    "Parse the next decimal number. Accepts + or - signs. Does not accept exponents."
+    (flatten-fail
+     (map ƒc.(parse-float? (chars->str c))
+          (many1 (next-if dec-char?))))))
+
+;;;
+;;; Source Specific
+;;;
+
+(coalton-toplevel
+  (declare reclaim (Source (CircularBuffer :t) UFix :t => Void -> Parser (CircularBuffer :t) UFix :r Unit))
+  (define (reclaim)
+    "Reclaim memory in the source `CircularBuffer` upto the current cursor. After this is
+called, the parser will NOT be able to backtrack to before the current cursor position!"
+    (Parser%
+     (fn (s c _on-un _on-rec on-s)
+       (reclaim-upto s c)
+       (on-s s c Unit))))
+  )
 
 ;;;
 ;;; Top-Level Runners
@@ -631,7 +735,8 @@ parsed."
                         "1|abc"
                         "1|"
                         "1"
-                        "1abc"))
+                        "1abc"
+                        "abc1|2|3"))
     (doiter (s strs)
       (let result = (parse-source s (take-left (parse-sep-ints)
                                                (eof))))
