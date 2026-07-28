@@ -32,10 +32,12 @@
    ;; Combinators
    #:partial
    #:label
+   #:parse-err
    #:parse-fail
    #:cut
    #:eof
-   #:flatten-fail
+   #:flatten-opt
+   #:look-ahead
    #:peek
    #:next
    #:next-if
@@ -207,6 +209,13 @@ transformed to an `:r`."
                     ƒscxe.(on-rec s c (Cons context x) e)
                     on-s))))
 
+  (declare parse-err (String -> Parser :s :c :r :a))
+  (define (parse-err msg)
+    "Raise an unrecoverable error with `msg`."
+    (Parser%
+     (fn (s c on-un _ _)
+       (on-un s c Nil msg))))
+
   (declare parse-fail (String -> Parser :s :c :r :a))
   (define (parse-fail msg)
     "Raise a recoverable failure with `msg`."
@@ -235,8 +244,8 @@ parser may not be able to backtrack to before the current cursor position!"
           (on-rec s c Nil (lisp (-> String) (t)
                             (cl:format cl:nil "Expected EOF. Got: ~a" t))))))))
 
-  (declare flatten-fail (Parser :s :c :r (Optional :t) -> Parser :s :c :r :t))
-  (define (flatten-fail p)
+  (declare flatten-opt (Parser :s :c :r (Optional :t) -> Parser :s :c :r :t))
+  (define (flatten-opt p)
     "Fail a `None` parse result."
     (Parser%
      (fn (s c on-un on-rec on-s)
@@ -247,6 +256,14 @@ parser may not be able to backtrack to before the current cursor position!"
                          (on-s s2 c2 t))
                         ((None)
                          (on-rec s c Nil "Unexpected None result."))))))))
+
+  (declare look-ahead (Parser :s :c :r :t -> Parser :s :c :r :t))
+  (define (look-ahead p)
+    "Apply `p` without advancing the cursor."
+    (Parser%
+     ;; NOTE: Because all parsers backtrack on failure, only needs to handle on-s
+     (fn (s c on-un on-rec on-s)
+       (run-parser% p s c on-un on-rec ƒ__a.(on-s s c a)))))
 
   (declare peek (Source :s :c :t => Void -> Parser :s :c :r :t))
   (define (peek)

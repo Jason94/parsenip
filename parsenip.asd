@@ -22,6 +22,7 @@
                 :serial t
                 :components
                 (
+                 (:file "core")
                  (:file "package")
                  )))
   :perform (test-op (op c)

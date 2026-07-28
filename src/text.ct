@@ -82,13 +82,13 @@
   (declare next-int (Source :s :c Char => Void -> Parser :s :c :r Integer))
   (define (next-int)
     "Parse the next integer. Accepts + or - signs. Fails if a valid integer is not parsed."
-    (flatten-fail
+    (flatten-opt
      (map ƒc.(s:parse-int (chars->str c))
           (many1 (next-if int-char?)))))
 
   (declare next-decimal (Source :s :c Char => Void -> Parser :s :c :r F64))
   (define (next-decimal)
     "Parse the next decimal number. Accepts + or - signs. Does not accept exponents."
-    (flatten-fail
+    (flatten-opt
      (map ƒc.(parse-float? (chars->str c))
           (many1 (next-if dec-char?))))))
