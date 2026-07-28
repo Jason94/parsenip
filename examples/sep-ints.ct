@@ -3,7 +3,16 @@
    #:coalton
    #:coalton-prelude
    #:coalton/math/integral
-   #:parsenip)
+   #:parsenip/sources
+   #:parsenip
+   #:parsenip/text)
+  (:import-from #:coalton/experimental/loops
+   #:doiter
+   )
+  (:local-nicknames
+   (:v #:coalton/vector)
+   (:fl #:coalton/file)
+   )
   (:export
    ))
 
@@ -13,6 +22,8 @@
 
 (coalton-toplevel
 
+  (inline)
+  (monomorphize)
   (declare parse-sep-ints (Source :s :c Char => Void -> Parser :s :c (Vector Integer) (Vector Integer)))
   (define (parse-sep-ints)
     (label "Parsing '|' delimited integers"
@@ -34,7 +45,7 @@
         (cl:format cl:t "~a: ~a~%" s result))
       (values)))
 
-  (declare main-file (Void -> Result fl:FileError (ParseResult (Vector Integer))))
+  (declare main-file (Void -> Result fl:FileError (ParseResult UFix (Vector Integer))))
   (define (main-file)
     (fl:with-open-file "file.txt"
       (fn (fs)

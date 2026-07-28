@@ -75,10 +75,12 @@
     (lisp (-> String) (vec)
       (cl:coerce vec 'cl:string)))
 
+  (inline)
   (declare skip-ws (Source :s :c Char => Void -> Parser :s :c :r Unit))
   (define (skip-ws)
     (skip-many (next-if ws-char?)))
   
+  (inline)
   (declare next-int (Source :s :c Char => Void -> Parser :s :c :r Integer))
   (define (next-int)
     "Parse the next integer. Accepts + or - signs. Fails if a valid integer is not parsed."
@@ -86,6 +88,7 @@
      (map ƒc.(s:parse-int (chars->str c))
           (many1 (next-if int-char?)))))
 
+  (inline)
   (declare next-decimal (Source :s :c Char => Void -> Parser :s :c :r F64))
   (define (next-decimal)
     "Parse the next decimal number. Accepts + or - signs. Does not accept exponents."

@@ -8,7 +8,6 @@
   (:import-from #:serapeum
    #:parse-float)
   (:import-from #:coalton/experimental/loops
-   #:doiter
    #:dorange
    #:dotimes)
   (:local-nicknames
@@ -56,6 +55,8 @@
    ))
 
 (cl:in-package #:parsenip)
+
+(cl:declaim (cl:optimize (cl:speed 3) (cl:debug 0) (cl:safety 1)))
 
 (named-readtables:in-readtable coalton:coalton)
 
@@ -193,6 +194,7 @@ transformed to an `:r`."
       ,@body)))
 
 (coalton-toplevel
+  (inline)
   (declare partial (Parser :s :c :r :a -> Parser :s :c :r (Tuple3 :s :c :a)))
   (define (partial p)
     "Return the unparsed source and cursor with the parse result. Useful for debugging."
@@ -201,6 +203,7 @@ transformed to an `:r`."
        (run-parser% p s c on-un on-rec
                     ƒsca.(on-s s c (Tuple3 s c a))))))
   
+  (inline)
   (declare label (String * Parser :s :c :r :a -> Parser :s :c :r :a))
   (define (label msg parser)
     "Label `parser` with `msg` for error messages. Adds to the context of unrecoverable
@@ -212,6 +215,7 @@ errors, and replaces any existing error message for recoverable errors."
                     ƒsc_.(on-rec s c msg)
                     on-s))))
 
+  (inline)
   (declare parse-err (String -> Parser :s :c :r :a))
   (define (parse-err msg)
     "Raise an unrecoverable error with `msg`."
@@ -219,6 +223,7 @@ errors, and replaces any existing error message for recoverable errors."
      (fn (s c on-un _ _)
        (on-un s c Nil msg))))
 
+  (inline)
   (declare parse-fail (String -> Parser :s :c :r :a))
   (define (parse-fail msg)
     "Raise a recoverable failure with `msg`."
@@ -226,6 +231,7 @@ errors, and replaces any existing error message for recoverable errors."
      (fn (s c _on-un on-rec _on-s)
        (on-rec s c msg))))
 
+  (inline)
   (declare commit (Source :s :c :t => Parser :s :c :r :a -> Parser :s :c :r :a))
   (define (commit p)
     "Commit to this branch of parsing, `p`, and disallow any further backtracking. Any
@@ -237,6 +243,7 @@ Also reclaims any available memory in the parser's source up to the current curs
        (reclaim! s c)
        (run-parser% p s c on-un ƒsce.(on-un s c Nil e) on-s))))
   
+  (inline)
   (declare eof (Source :s :c :t => Void -> Parser :s :c :r Unit))
   (define (eof)
     "Succeed if no tokens remain, fail otherwise."
@@ -249,6 +256,7 @@ Also reclaims any available memory in the parser's source up to the current curs
           (on-rec s c (lisp (-> String) (t)
                         (cl:format cl:nil "Expected EOF. Got: ~a" t))))))))
 
+  (inline)
   (declare flatten-opt (Parser :s :c :r (Optional :t) -> Parser :s :c :r :t))
   (define (flatten-opt p)
     "Fail a `None` parse result."
@@ -262,6 +270,7 @@ Also reclaims any available memory in the parser's source up to the current curs
                         ((None)
                          (on-rec s c "Unexpected None result."))))))))
 
+  (inline)
   (declare look-ahead (Parser :s :c :r :t -> Parser :s :c :r :t))
   (define (look-ahead p)
     "Apply `p` without advancing the cursor."
@@ -270,6 +279,7 @@ Also reclaims any available memory in the parser's source up to the current curs
      (fn (s c on-un on-rec on-s)
        (run-parser% p s c on-un on-rec ƒ__a.(on-s s c a)))))
 
+  (inline)
   (declare peek (Source :s :c :t => Void -> Parser :s :c :r :t))
   (define (peek)
     "Look at the current token without parsing forward. Fails if no tokens remain."
@@ -281,6 +291,7 @@ Also reclaims any available memory in the parser's source up to the current curs
          ((Some t)
           (on-s s c t))))))
     
+  (inline)
   (declare next (Source :s :c :t => Void -> Parser :s :c :r :t))
   (define (next)
     "Parse the current token and advance the cursor by 1. Fails if no tokens remain."
@@ -289,6 +300,7 @@ Also reclaims any available memory in the parser's source up to the current curs
        (step-safe s c on-rec (t c)
          (on-s s c t)))))
 
+  (inline)
   (declare next-if (Source :s :c :t => (:t -> Boolean) -> Parser :s :c :r :t))
   (define (next-if pred)
     "Parse the current token and advance the cursor by 1 if it satisfies `pred`, failing
@@ -300,6 +312,7 @@ if it does not."
              (on-s s c2 t)
              (on-rec s c "Token failed to satisfy predicate."))))))
 
+  (inline)
   (declare next-token ((Source :s :c :t) (Eq :t) => :t -> Parser :s :c :r :t))
   (define (next-token t)
     "Parse the current token and advance the cursor by 1 if it matches `t`, failing if it
@@ -307,6 +320,7 @@ does not."
     (next-if ƒx.(== x t)))
 
   ;; TODO: Convert this to loop or... make tail recursive jesus christ
+  (inline)
   (declare parse-into (Accumulator :a :f => :a :t * Parser :s :c :r :t -> Parser :s :c :r (:a :t)))
   (define (parse-into acc p)
     "Run `p` until it fails, accumulating the results into `acc`."
@@ -324,15 +338,18 @@ does not."
                  (run-parser% p s c on-un on-inner-rec on-inner-s))))
          (run-parser% p s c on-un on-inner-rec on-inner-s)))))
 
+  (inline)
   (declare many (Accumulator :a :f => Parser :s :c :r :t -> Parser :s :c :r (:f :t)))
   (define (many p)
     "Repeat `p` until it fails, returning its results."
     (let acc = (initial-accumulator))
     (map finalize (parse-into acc p)))
 
+  (inline)
   (declare many_ (Parser :s :c :r :t -> Parser :s :c :r (Vector :t)))
   (define many_ many)
 
+  (inline)
   (declare many1 (Accumulator :a :f => Parser :s :c :r :t -> Parser :s :c :r (:f :t)))
   (define (many1 p)
     "Repeat `p` until it fails, returning its results. Must succeed at least once."
@@ -342,6 +359,7 @@ does not."
      (map finalize (parse-into acc p))))
 
   ;; TODO: Convert this into a loop or tail recursive or something
+  (inline)
   (declare skip-many (Parser :s :c :r :t -> Parser :s :c :r Unit))
   (define (skip-many p)
     "Skip successes of `p` until it fails."
@@ -353,6 +371,7 @@ does not."
                  (run-parser% p s c on-un on-inner-rec on-inner-s))))
          (run-parser% p s c on-un on-inner-rec on-inner-s)))))
 
+  (inline)
   (declare sep-by (Accumulator :a :f => Parser :s :c :r :t * Parser :s :c :r :x -> Parser :s :c :r (:f :t)))
   (define (sep-by p sep)
     "Parses zero or more occurences of `p`, separated by `sep`. Returns the values
@@ -361,6 +380,7 @@ returned by `p`."
      (sep-by1 p sep)
      (pure (finalize (initial-accumulator)))))
 
+  (inline)
   (declare sep-by1 (Accumulator :a :f => Parser :s :c :r :t * Parser :s :c :r :x -> Parser :s :c :r (:f :t)))
   (define (sep-by1 p sep)
     "Parses zero or more occurences of `p`, separated by `sep`. Returns the values
@@ -380,6 +400,7 @@ returned by `p`. Must succeed at least once."
 ;;; 
 
 (coalton-toplevel
+  (inline)
   (declare parse-source (Source :s :c :t => :s * Parser :s :c :r :r -> ParseResult :c :r))
   (define (parse-source source parser)
     (run-parser% parser
@@ -389,6 +410,7 @@ returned by `p`. Must succeed at least once."
                  ƒ_ce.(Err (Tuple3 c Nil e))
                  ƒ__r.(Ok r)))
 
+  (inline)
   (declare parse-file-chars! (fl:FileStream Char * Parser (BufferedSource Char) UFix :r :r -> ParseResult UFix :r))
   (define (parse-file-chars! fs parser)
     "Parse `fs` using `parser`. Will consume the stream."
