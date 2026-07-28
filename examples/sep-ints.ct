@@ -1,0 +1,48 @@
+(cl:defpackage #:parsenip/examples/sep-ints
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:coalton/math/integral
+   #:parsenip)
+  (:export
+   ))
+
+(cl:in-package #:parsenip/examples/sep-ints)
+
+(named-readtables:in-readtable coalton:coalton)
+
+(coalton-toplevel
+
+  (declare parse-sep-ints (Source :s :c Char => Void -> Parser :s :c (Vector Integer) (Vector Integer)))
+  (define (parse-sep-ints)
+    (label "Parsing '|' delimited integers"
+           (sep-by (next-int) (next-if ƒc.(== c #\|)))))
+  
+  (declare main (Void -> Void))
+  (define (main)
+    (let strs = (v:make "123|21|1"
+                        "1|2|3abc2|3"
+                        "1|abc"
+                        "1|"
+                        "1"
+                        "1abc"
+                        "abc1|2|3"))
+    (doiter (s strs)
+      (let result = (parse-source s (take-left (parse-sep-ints)
+                                               (eof))))
+      (lisp (-> :a) (s result)
+        (cl:format cl:t "~a: ~a~%" s result))
+      (values)))
+
+  (declare main-file (Void -> Result fl:FileError (ParseResult (Vector Integer))))
+  (define (main-file)
+    (fl:with-open-file "file.txt"
+      (fn (fs)
+        (Ok (parse-file-chars! fs
+                               (take-left
+                                (parse-sep-ints)
+                                (label "Parsing final EOF"
+                                       (do
+                                        (many_ (next-if ws-char?))
+                                        (eof)))))))))
+  )

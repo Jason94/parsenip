@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang=en>
+ <head>
+  <meta charset=UTF-8>
+  <title>API Documentation</title>
+  <style>:root{
+  --gap:28px;
+  --content-gap:20px;
+  --main-width:1100px;
+  --bg:#ffffff;
+  --fg:#1f1f1f;
+  --muted:#6c6c6c;
+  --border:#eeeeee;
+  --code-bg:#f5f5f5;
+  --code-block-bg:#1c1d21;
+  --radius:8px
+}
+*,:before,:after{box-sizing:border-box}
+html{overflow-y:scroll}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,"Helvetica Neue",Arial,sans-serif;
+  font-size:18px;
+  line-height:1.65;
+  background:var(--bg);
+  color:var(--fg)
+}
+a{color:inherit;text-decoration:none}
+a:hover{text-decoration:underline}
+.main{
+  position:relative;
+  min-height:100vh;
+  max-width:calc(var(--main-width) + var(--gap) * 2);
+  margin:auto;
+  padding:var(--gap)
+}
+.post-two-pane{width:100%}
+.post-two-pane .post-content{
+  display:flex;
+  gap:var(--gap);
+  align-items:flex-start
+}
+.sidebar{
+  width:320px;
+  position:sticky;
+  top:10px;
+  max-height:calc(100vh - 20px);
+  overflow:auto;
+  display:flex;
+  flex-direction:column;
+  padding-right:12px
+}
+.sidebar-header{
+  flex-shrink:0;
+  border-bottom:1px solid var(--border);
+  padding:0 0 12px 0
+}
+.sidebar-content{padding:12px 0 0 0}
+.sidebar ul{list-style:none;margin:0;padding:0}
+.sidebar li{margin:0 0 6px 0}
+.main-content{flex:1;min-width:0}
+.main-content > h1{margin-top:0}
+h1{margin:40px 0 32px;font-size:40px;line-height:1.15}
+h3{margin:32px 0 16px;font-size:24px;line-height:1.2}
+h4{margin:24px 0 10px;font-size:18pt;line-height:1.2}
+p{margin:0 0 16px 0}
+hr{margin: 30px 0;height: 2px;background: rgb(214, 214, 214);border: 0;}
+code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  margin:0 4px;
+  padding:4px 6px;
+  font-size:.78em;
+  line-height:1.5;
+  background:var(--code-bg);
+  border-radius:2px
+}
+.package-docstring,.docstring{white-space:pre-wrap}
+pre{margin:16px 0}
+pre code{
+  display:block;
+  margin:0;
+  padding:10px;
+  background:var(--code-block-bg);
+  color:#d5d5d6;
+  border-radius:var(--radius);
+  overflow:auto;
+  font-size:.85em
+}
+details{margin:12px 0 16px;border:0;padding:0}
+summary{cursor:pointer;font-weight:600;padding:6px 0}
+.methods-item{margin-top:5px}
+.instances-list{margin:8px 0 12px 20px}
+.instances-item{margin:4px 0}
+.constructors-list{margin:8px 0 12px 20px}
+.constructors-list li{margin:4px 0}
+.symbol-search{margin-top:10px;position:relative}
+.symbol-search input{
+  width:100%;
+  padding:8px;
+  border:1px solid #ddd;
+  border-radius:4px;
+  font-size:.9rem
+}
+.search-results{
+  display:none;
+  position:absolute;
+  left:0;
+  right:0;
+  top:calc(100% + 6px);
+  background:var(--bg);
+  border:1px solid #ddd;
+  border-radius:4px;
+  max-height:320px;
+  overflow:auto;
+  z-index:1000
+}
+.search-results.active{display:block}
+.search-result-item{padding:10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:.85rem}
+.search-result-item:last-child{border-bottom:0}
+.search-result-item:hover,.search-result-item.active{background:#f8f9fa}
+.search-result-symbol{font-weight:700}
+.search-result-type{color:#666;font-size:.8rem;margin-left:8px}
+.search-result-package{color:#888;font-size:.8rem;margin-top:4px}
+@media (max-width:1050px){
+  .sidebar{display:none}
+  .post-two-pane .post-content{display:block}
+  .main{max-width:calc(820px + var(--gap) * 2)}
+}</style>
+ </head>
+ <body>
+  <main class=main>
+   <article class=post-two-pane>
+    <div class=post-content><aside class=sidebar>
+      <div class=sidebar-header>
+       <h3 id=reference>Reference</h3>
+       <div class=symbol-search>
+        <input type=text id=symbol-search-input
+               placeholder="Search symbols."
+               autocomplete=off>
+        <div class=search-results id=search-results></div></div></div>
+      <div class=sidebar-content>
+       <ul>
+        <li><a href=#parsenip-sources-package><code>PARSENIP/SOURCES</code></a>
+        <li><a href=#parsenip-package><code>PARSENIP</code></a>
+        <li><a href=#parsenip-text-package><code>PARSENIP/TEXT</code></a></ul></div></aside>
+     <div class=main-content><h1 id=parsenip-sources-package>Package <code>PARSENIP/SOURCES</code></h1><div class=structs-content>
+       <h3 class=structs-header>Structs</h3><h4 id=parsenip-sources-bufferedsource-type><a href="#parsenip-sources-bufferedsource-type"><code>BufferedSource :A</code></a> <sup><sub>STRUCT · <a href="https://github.com/Jason94/parsenip/tree/master/src/sources.ct#L159-L161">src</a></sub></sup></sub></sup></h4><details>
+        <summary>Instances</summary>
+        <ul class=instances-list>
+         <li class=instances-item><code><a href="#coalton-types-runtimerepr-class">RuntimeRepr</a> (<a href="#parsenip-sources-bufferedsource-type">BufferedSource</a> :|0|)</code>
+         <li class=instances-item><code><a href="#parsenip-sources-source-class">Source</a> (<a href="#parsenip-sources-bufferedsource-type">BufferedSource</a> :T) <a href="#coalton-ufix-type">UFix</a> :T</code></ul></details></div>
+      <hr><div class=classes-content>
+       <h3 class=classes-header>Classes</h3><h4 id=parsenip-sources-accumulator-class><a href="#parsenip-sources-accumulator-class"><code>Accumulator</code></a> <sup><sub>CLASS · <a href="https://github.com/Jason94/parsenip/tree/master/src/sources.ct#L303-L309">src</a></sub></sup></sub></sup></h4><code><a href="#parsenip-sources-accumulator-class">Accumulator</a> :A :F</code><p class=docstring>A type that can accumulate values and then finalize the accumulation. Is allowed to
+mutate internally.</p><span>Methods:</span>
+       <ul class=methods-list>
+        <li class=methods-item><code>INITIAL-ACCUMULATOR :: &key (:initial <a href="#coalton-optional-type">Optional</a> (:A :T)) &rarr; :A :T</code>
+        <li class=methods-item><code>INITIAL-ACCUMULATOR-WITH :: :T &rarr; :A :T</code>
+        <li class=methods-item><code>ACCUMULATE :: :A :T * :T &rarr; :A :T</code>
+        <li class=methods-item><code>FINALIZE :: :A :T &rarr; :F :T</code></ul><details>
+        <summary>Instances</summary>
+        <ul class=instances-list>
+         <li class=instances-item><code><a href="#parsenip-sources-accumulator-class">Accumulator</a> <a href="#coalton-vector-vector-type">Vector</a> <a href="#coalton-vector-vector-type">Vector</a></code>
+         <li class=instances-item><code><a href="#parsenip-sources-accumulator-class">Accumulator</a> <a href="#coalton-list-type">List</a> <a href="#coalton-list-type">List</a></code></ul></details><h4 id=parsenip-sources-source-class><a href="#parsenip-sources-source-class"><code>Source</code></a> <sup><sub>CLASS · <a href="https://github.com/Jason94/parsenip/tree/master/src/sources.ct#L201-L215">src</a></sub></sup></sub></sup></h4><code><a href="#parsenip-sources-source-class">Source</a> :S :C :T</code><span>Methods:</span>
+       <ul class=methods-list>
+        <li class=methods-item><code>INITIAL-CURSOR :: :S &rarr; :C</code><span><br>Cursor pointing to the beginning of `source`.</span>
+        <li class=methods-item><code>ADVANCE-N :: :S * :C * <a href="#coalton-ufix-type">UFix</a> &rarr; <a href="#coalton-optional-type">Optional</a> :C</code><span><br>Attempt to advance `cursor` by `n`. Returns `None` if EOF.</span>
+        <li class=methods-item><code>CURSE :: :S * :C &rarr; <a href="#coalton-optional-type">Optional</a> :T</code><span><br>Attempt to get the value at `cursor` in `source`. Returns `None` if EOF.</span>
+        <li class=methods-item><code>CUT! :: :S * :C &rarr; Void</code><span><br>Signal that the parser will never backtrack before `cursor`. Is allowed to mutate&#xA;the source, such that any curses to `cursor` or later will not be affected. Allows&#xA;reclamation of memory for unbounded sources.</span></ul><details>
+        <summary>Instances</summary>
+        <ul class=instances-list>
+         <li class=instances-item><code><a href="#parsenip-sources-source-class">Source</a> (<a href="#parsenip-sources-bufferedsource-type">BufferedSource</a> :T) <a href="#coalton-ufix-type">UFix</a> :T</code>
+         <li class=instances-item><code><a href="#parsenip-sources-source-class">Source</a> <a href="#coalton-string-type">String</a> <a href="#coalton-ufix-type">UFix</a> <a href="#coalton-char-type">Char</a></code>
+         <li class=instances-item><code><a href="#parsenip-sources-source-class">Source</a> (<a href="#coalton-vector-vector-type">Vector</a> :T) <a href="#coalton-ufix-type">UFix</a> :T</code>
+         <li class=instances-item><code><a href="#parsenip-sources-source-class">Source</a> (<a href="#coalton-list-type">List</a> :T) (<a href="#coalton-list-type">List</a> :T) :T</code></ul></details></div>
+      <hr><div class=values-content>
+       <h3 class=values-header>Values</h3><h4
+    id=parsenip-sources-new-buffered-source-value><a href="#parsenip-sources-new-buffered-source-value"><code>(NEW-BUFFERED-SOURCE FILL)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/sources.ct#L164-L167">src</a></sub></sup></sub></sup></h4><code>&forall; :A. <a href="#coalton-types-runtimerepr-class">RuntimeRepr</a> :A &rArr; (Void &rarr; <a href="#coalton-optional-type">Optional</a> :A) &rarr; <a href="#parsenip-sources-bufferedsource-type">BufferedSource</a> :A</code></div>
+      <hr><h1 id=parsenip-package>Package <code>PARSENIP</code></h1><div class=types-content>
+       <h3 class=types-header>Types</h3><h4 id=parsenip-context-type><a href="#parsenip-context-type"><code>Context</code></a> <sup><sub>TYPE · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L73-L73">src</a></sub></sup></sub></sup></h4><h4 id=parsenip-parseerror-type><a href="#parsenip-parseerror-type"><code>ParseError</code></a> <sup><sub>TYPE · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L72-L72">src</a></sub></sup></sub></sup></h4><h4 id=parsenip-parser-type><a href="#parsenip-parser-type"><code>Parser</code></a> <sup><sub>TYPE · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L81-L90">src</a></sub></sup></sub></sup></h4><p class=docstring>Parser that converts source `:s` using cursor `:c` to an `:a`, which is eventually
+transformed to an `:r`.</p><details>
+        <summary>Instances</summary>
+        <ul class=instances-list>
+         <li class=instances-item><code><a href="#coalton-classes-alternative-class">Alternative</a> (<a href="#parsenip-parser-type">Parser</a> :S :C :R)</code>
+         <li class=instances-item><code><a href="#coalton-classes-applicative-class">Applicative</a> (<a href="#parsenip-parser-type">Parser</a> :S :C :R)</code>
+         <li class=instances-item><code><a href="#coalton-classes-functor-class">Functor</a> (<a href="#parsenip-parser-type">Parser</a> :S :C :R)</code>
+         <li class=instances-item><code><a href="#coalton-classes-monad-class">Monad</a> (<a href="#parsenip-parser-type">Parser</a> :S :C :R)</code>
+         <li class=instances-item><code><a href="#coalton-types-runtimerepr-class">RuntimeRepr</a> (<a href="#parsenip-parser-type">Parser</a> :|0| :|1| :|2| :|3|)</code></ul></details><h4 id=parsenip-parseresult-type><a href="#parsenip-parseresult-type"><code>ParseResult</code></a> <sup><sub>TYPE · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L75-L75">src</a></sub></sup></sub></sup></h4></div>
+      <hr><div class=values-content>
+       <h3 class=values-header>Values</h3><h4 id=parsenip-cut-value><a href="#parsenip-cut-value"><code>(CUT)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L218-L224">src</a></sub></sup></sub></sup></h4><code>&forall; :T :S :C :R. <a href="#parsenip-sources-source-class">Source</a> :S :C :T &rArr; Void &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R <a href="#coalton-unit-type">Unit</a></code><p class=docstring>Allow the source to reclaim memory upto the current cursor. After this is called, the
+parser may not be able to backtrack to before the current cursor position!</p><h4 id=parsenip-eof-value><a href="#parsenip-eof-value"><code>(EOF)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L227-L236">src</a></sub></sup></sub></sup></h4><code>&forall; :T :S :C :R. <a href="#parsenip-sources-source-class">Source</a> :S :C :T &rArr; Void &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R <a href="#coalton-unit-type">Unit</a></code><p class=docstring>Succeed if no tokens remain, fail otherwise.</p><h4 id=parsenip-flatten-fail-value><a href="#parsenip-flatten-fail-value"><code>(FLATTEN-FAIL P)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L239-L249">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R :T. <a href="#parsenip-parser-type">Parser</a> :S :C :R (<a href="#coalton-optional-type">Optional</a> :T) &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R :T</code><p class=docstring>Fail a `None` parse result.</p><h4 id=parsenip-label-value><a href="#parsenip-label-value"><code>(LABEL CONTEXT PARSER)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L201-L208">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R :A. <a href="#coalton-string-type">String</a> * <a href="#parsenip-parser-type">Parser</a> :S :C :R :A &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R :A</code><p class=docstring>Label `parser` with `context` for error messages.</p><h4 id=parsenip-many-value><a href="#parsenip-many-value"><code>(MANY P)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L300-L303">src</a></sub></sup></sub></sup></h4><code>&forall; :A :S :C :R :T :F. <a href="#parsenip-sources-accumulator-class">Accumulator</a> :A :F &rArr; <a href="#parsenip-parser-type">Parser</a> :S :C :R :T &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R (:F :T)</code><p class=docstring>Repeat `p` until it fails, returning its results.</p><h4 id=parsenip-many1-value><a href="#parsenip-many1-value"><code>(MANY1 P)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L309-L314">src</a></sub></sup></sub></sup></h4><code>&forall; :A :S :C :R :T :F. <a href="#parsenip-sources-accumulator-class">Accumulator</a> :A :F &rArr; <a href="#parsenip-parser-type">Parser</a> :S :C :R :T &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R (:F :T)</code><p class=docstring>Repeat `p` until it fails, returning its results. Must succeed at least once.</p><h4 id=parsenip-many_-value><a href="#parsenip-many_-value"><code>(MANY_)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L306-L306">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R :T. <a href="#parsenip-parser-type">Parser</a> :S :C :R :T &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R (<a href="#coalton-vector-vector-type">Vector</a> :T)</code><h4 id=parsenip-next-value><a href="#parsenip-next-value"><code>(NEXT)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L263-L268">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R :T. <a href="#parsenip-sources-source-class">Source</a> :S :C :T &rArr; Void &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R :T</code><p class=docstring>Parse the current token and advance the cursor by 1. Fails if no tokens remain.</p><h4 id=parsenip-next-if-value><a href="#parsenip-next-if-value"><code>(NEXT-IF PRED)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L271-L279">src</a></sub></sup></sub></sup></h4><code>&forall; :T :S :C :R. <a href="#parsenip-sources-source-class">Source</a> :S :C :T &rArr; (:T &rarr; <a href="#coalton-boolean-type">Boolean</a>) &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R :T</code><p class=docstring>Parse the current token and advance the cursor by 1 if it satisfies `pred`, failing
+if it does not.</p><h4 id=parsenip-parse-fail-value><a href="#parsenip-parse-fail-value"><code>(PARSE-FAIL MSG)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L211-L215">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R :A. <a href="#coalton-string-type">String</a> &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R :A</code><p class=docstring>Raise a recoverable failure with `msg`.</p><h4 id=parsenip-parse-file-chars!-value><a href="#parsenip-parse-file-chars!-value"><code>(PARSE-FILE-CHARS! FS PARSER)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L365-L368">src</a></sub></sup></sub></sup></h4><code>&forall; :R. <a href="#coalton-file-filestream-type">FileStream</a> <a href="#coalton-char-type">Char</a> * <a href="#parsenip-parser-type">Parser</a> (<a href="#parsenip-sources-bufferedsource-type">BufferedSource</a> <a href="#coalton-char-type">Char</a>) <a href="#coalton-ufix-type">UFix</a> :R :R &rarr; <a href="#parsenip-parseresult-type">ParseResult</a> :R</code><p class=docstring>Parse `fs` using `parser`. Will consume the stream.</p><h4 id=parsenip-parse-into-value><a href="#parsenip-parse-into-value"><code>(PARSE-INTO ACC P)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L283-L297">src</a></sub></sup></sub></sup></h4><code>&forall; :F :A :T :S :C :R. <a href="#parsenip-sources-accumulator-class">Accumulator</a> :A :F &rArr; :A :T * <a href="#parsenip-parser-type">Parser</a> :S :C :R :T &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R (:A :T)</code><p class=docstring>Run `p` until it fails, accumulating the results into `acc`.</p><h4 id=parsenip-parse-source-value><a href="#parsenip-parse-source-value"><code>(PARSE-SOURCE SOURCE PARSER)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L356-L362">src</a></sub></sup></sub></sup></h4><code>&forall; :T :S :C :R. <a href="#parsenip-sources-source-class">Source</a> :S :C :T &rArr; :S * <a href="#parsenip-parser-type">Parser</a> :S :C :R :R &rarr; <a href="#parsenip-parseresult-type">ParseResult</a> :R</code><h4 id=parsenip-partial-value><a href="#parsenip-partial-value"><code>(PARTIAL P)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L193-L198">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R :A. <a href="#parsenip-parser-type">Parser</a> :S :C :R :A &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R (<a href="#coalton-tuple-tuple3-type">Tuple3</a> :S :C :A)</code><p class=docstring>Return the unparsed source and cursor with the parse result. Useful for debugging.</p><h4 id=parsenip-peek-value><a href="#parsenip-peek-value"><code>(PEEK)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L252-L260">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R :T. <a href="#parsenip-sources-source-class">Source</a> :S :C :T &rArr; Void &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R :T</code><p class=docstring>Look at the current token without parsing forward. Fails if no tokens remain.</p><h4 id=parsenip-sep-by-value><a href="#parsenip-sep-by-value"><code>(SEP-BY P SEP)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L329-L334">src</a></sub></sup></sub></sup></h4><code>&forall; :A :S :C :R :T :X :F. <a href="#parsenip-sources-accumulator-class">Accumulator</a> :A :F &rArr; <a href="#parsenip-parser-type">Parser</a> :S :C :R :T * <a href="#parsenip-parser-type">Parser</a> :S :C :R :X &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R (:F :T)</code><p class=docstring>Parses zero or more occurences of `p`, separated by `sep`. Returns the values
+returned by `p`.</p><h4 id=parsenip-sep-by1-value><a href="#parsenip-sep-by1-value"><code>(SEP-BY1 P SEP)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L337-L347">src</a></sub></sup></sub></sup></h4><code>&forall; :A :S :C :R :T :X :F. <a href="#parsenip-sources-accumulator-class">Accumulator</a> :A :F &rArr; <a href="#parsenip-parser-type">Parser</a> :S :C :R :T * <a href="#parsenip-parser-type">Parser</a> :S :C :R :X &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R (:F :T)</code><p class=docstring>Parses zero or more occurences of `p`, separated by `sep`. Returns the values
+returned by `p`. Must succeed at least once.</p><h4 id=parsenip-skip-many-value><a href="#parsenip-skip-many-value"><code>(SKIP-MANY P)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/main.ct#L318-L326">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R :T. <a href="#parsenip-parser-type">Parser</a> :S :C :R :T &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R <a href="#coalton-unit-type">Unit</a></code><p class=docstring>Skip successes of `p` until it fails.</p></div>
+      <hr><h1 id=parsenip-text-package>Package <code>PARSENIP/TEXT</code></h1><div class=values-content>
+       <h3 class=values-header>Values</h3><h4 id="parsenip-text-chars->str-value"><a href="#parsenip-text-chars->str-value"><code>(CHARS-&gt;STR VEC)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/text.ct#L74-L76">src</a></sub></sup></sub></sup></h4><code><a href="#coalton-vector-vector-type">Vector</a> <a href="#coalton-char-type">Char</a> &rarr; <a href="#coalton-string-type">String</a></code><h4 id=parsenip-text-dec-char?-value><a href="#parsenip-text-dec-char?-value"><code>(DEC-CHAR? C)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/text.ct#L48-L52">src</a></sub></sup></sub></sup></h4><code><a href="#coalton-char-type">Char</a> &rarr; <a href="#coalton-boolean-type">Boolean</a></code><p class=docstring>Returns `True` if `c` could be part of a properly parsed decimal. Includes digits,
+&#39;+&#39;, &#39;-&#39;, and &#39;.&#39;.</p><h4 id=parsenip-text-int-char?-value><a href="#parsenip-text-int-char?-value"><code>(INT-CHAR? C)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/text.ct#L37-L44">src</a></sub></sup></sub></sup></h4><code><a href="#coalton-char-type">Char</a> &rarr; <a href="#coalton-boolean-type">Boolean</a></code><p class=docstring>Returns `True` if `c` could be part of a properly parsed integer. Includes digits,
+&#39;+&#39;, and &#39;-&#39;.</p><h4 id=parsenip-text-next-decimal-value><a href="#parsenip-text-next-decimal-value"><code>(NEXT-DECIMAL)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/text.ct#L90-L94">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R. <a href="#parsenip-sources-source-class">Source</a> :S :C <a href="#coalton-char-type">Char</a> &rArr; Void &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R <a href="#coalton-f64-type">F64</a></code><p class=docstring>Parse the next decimal number. Accepts + or - signs. Does not accept exponents.</p><h4 id=parsenip-text-next-int-value><a href="#parsenip-text-next-int-value"><code>(NEXT-INT)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/text.ct#L83-L87">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R. <a href="#parsenip-sources-source-class">Source</a> :S :C <a href="#coalton-char-type">Char</a> &rArr; Void &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R <a href="#coalton-integer-type">Integer</a></code><p class=docstring>Parse the next integer. Accepts + or - signs. Fails if a valid integer is not parsed.</p><h4 id=parsenip-text-parse-float?-value><a href="#parsenip-text-parse-float?-value"><code>(PARSE-FLOAT? S)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/text.ct#L56-L60">src</a></sub></sup></sub></sup></h4><code><a href="#coalton-string-type">String</a> &rarr; <a href="#coalton-optional-type">Optional</a> <a href="#coalton-f64-type">F64</a></code><h4 id=parsenip-text-skip-ws-value><a href="#parsenip-text-skip-ws-value"><code>(SKIP-WS)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/text.ct#L79-L80">src</a></sub></sup></sub></sup></h4><code>&forall; :S :C :R. <a href="#parsenip-sources-source-class">Source</a> :S :C <a href="#coalton-char-type">Char</a> &rArr; Void &rarr; <a href="#parsenip-parser-type">Parser</a> :S :C :R <a href="#coalton-unit-type">Unit</a></code><h4 id=parsenip-text-ws-char?-value><a href="#parsenip-text-ws-char?-value"><code>(WS-CHAR? C)</code></a> <sup><sub>FUNCTION · <a href="https://github.com/Jason94/parsenip/tree/master/src/text.ct#L64-L70">src</a></sub></sup></sub></sup></h4><code><a href="#coalton-char-type">Char</a> &rarr; <a href="#coalton-boolean-type">Boolean</a></code><p class=docstring>Return True if `c` is a whitespace character. Included: space, newline, and tab.</p></div>
+      <hr>
+     </div>
+    </div>
+   </article>
+  </main>
+  <script>(function(){
+  function text(el){return (el&&el.textContent||"").trim()}
+  function buildIndex(main){
+    var items=[]
+    var pkg=""
+    var walker=document.createTreeWalker(main,NodeFilter.SHOW_ELEMENT,null,false)
+    var node=walker.currentNode
+    while(node){
+      var tag=node.tagName
+      if(tag==="H1"){
+        var code=node.querySelector("code")
+        pkg=text(code)||text(node)
+      }else if(tag==="H4"){
+        var a=node.querySelector('a[href^="#"]')
+        if(a){
+          var href=a.getAttribute("href")||""
+          var name=text(a)
+          var sub=node.querySelector("sub")
+          var typ=""
+          if(sub){
+            typ=text(sub).split("·")[0].trim()
+          }
+          if(href&&name){
+            items.push({name:name,href:href,typ:typ,pkg:pkg})
+          }
+        }
+      }
+      node=walker.nextNode()
+    }
+    return items
+  }
+  function el(tag,cls,txt){
+    var d=document.createElement(tag)
+    if(cls)d.className=cls
+    if(txt!=null)d.textContent=txt
+    return d
+  }
+  function setup(){
+    var input=document.getElementById("symbol-search-input")
+    var results=document.getElementById("search-results")
+    var main=document.querySelector(".main-content")
+    if(!input||!results||!main)return
+    var items=buildIndex(main)
+    var activeIndex=-1
+    function clear(){
+      results.innerHTML=""
+      results.classList.remove("active")
+      activeIndex=-1
+    }
+    function setActive(i){
+      var children=results.querySelectorAll(".search-result-item")
+      for(var k=0;k<children.length;k++)children[k].classList.remove("active")
+      if(i<0||i>=children.length)return
+      children[i].classList.add("active")
+      children[i].scrollIntoView({block:"nearest"})
+    }
+    function render(q){
+      q=(q||"").trim().toLowerCase()
+      results.innerHTML=""
+      activeIndex=-1
+      if(!q){
+        results.classList.remove("active")
+        return
+      }
+      var out=[]
+      for(var i=0;i<items.length;i++){
+        var it=items[i]
+        if(it.name.toLowerCase().indexOf(q)!==-1){
+          out.push(it)
+          if(out.length>=40)break
+        }
+      }
+      for(var j=0;j<out.length;j++){
+        var it2=out[j]
+        var row=el("div","search-result-item")
+        row.tabIndex=-1
+        row.dataset.href=it2.href
+        row.appendChild(el("span","search-result-symbol",it2.name))
+        if(it2.typ)row.appendChild(el("span","search-result-type",it2.typ))
+        if(it2.pkg)row.appendChild(el("div","search-result-package",it2.pkg))
+        row.addEventListener("mousedown",(function(href){
+          return function(e){
+            e.preventDefault()
+            window.location.hash=href.slice(1)
+            clear()
+            input.blur()
+          }
+        })(it2.href))
+        results.appendChild(row)
+      }
+      if(out.length)results.classList.add("active")
+      else results.classList.remove("active")
+    }
+    input.addEventListener("input",function(){render(input.value)})
+    input.addEventListener("focus",function(){if(input.value.trim())render(input.value)})
+    input.addEventListener("keydown",function(e){
+      var children=results.querySelectorAll(".search-result-item")
+      if(e.key==="Escape"){
+        clear()
+        input.blur()
+        return
+      }
+      if(!children.length)return
+      if(e.key==="ArrowDown"){
+        e.preventDefault()
+        activeIndex=Math.min(children.length-1,activeIndex+1)
+        setActive(activeIndex)
+        results.classList.add("active")
+        return
+      }
+      if(e.key==="ArrowUp"){
+        e.preventDefault()
+        activeIndex=Math.max(0,activeIndex-1)
+        setActive(activeIndex)
+        results.classList.add("active")
+        return
+      }
+      if(e.key==="Enter"){
+        if(activeIndex>=0&&activeIndex<children.length){
+          var href=children[activeIndex].dataset.href
+          if(href)window.location.hash=href.slice(1)
+          clear()
+          input.blur()
+        }
+      }
+    })
+    document.addEventListener("mousedown",function(e){
+      if(e.target===input||results.contains(e.target))return
+      clear()
+    })
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",setup)
+  else setup()
+})();</script>
+ </body>
+</html>

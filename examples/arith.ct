@@ -1,0 +1,66 @@
+(cl:defpackage #:parsenip/examples/arith
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:coalton/math/integral
+   #:parsenip/sources
+   #:parsenip
+   #:parsenip/text)
+  (:export
+   ))
+
+(cl:in-package #:parsenip/examples/arith)
+
+(named-readtables:in-readtable coalton:coalton)
+
+;;;
+;;; Parser 1: All four operations, no precedence, no grouping
+;;;
+
+(coalton-toplevel
+  (define-type-alias Op (F64 * F64 -> F64))
+  
+  (declare operation (Source :s :c Char => Void -> Parser :s :c :r Op))
+  (define (operation)
+    (do
+     (skip-ws)
+     (t <- (next))
+     (skip-ws)
+     (match t
+       (#\+ (pure +))
+       (#\- (pure -))
+       (#\* (pure *))
+       (#\/ (pure /))
+       (_   (parse-fail "Expected valid binary operation.")))))
+
+  (declare next-operation (Source :s :c Char => F64 -> Parser :s :c :r F64))
+  (define (next-operation x)
+    "Perform the next operation on `x` and the next parsed operand."
+    (do
+     (op <- (operation))
+     (x2 <- (next-decimal))
+     (pure (op x x2))))
+
+  ;; Is this going to wind up being tail-recursive? It's a *great* question
+  (declare many-operations (Source :s :c Char => F64 -> Parser :s :c :r F64))
+  (define (many-operations x)
+    (alt
+     (do
+      (eof)
+      (pure x))
+     (do
+      (x2 <- (next-operation x))
+      (many-operations x2))))
+
+  (declare parse-1 (Source :s :c Char => Void -> Parser :s :c :r F64))
+  (define (parse-1)
+    (do
+     (x <- (next-decimal))
+     (many-operations x))))
+
+(coalton-toplevel
+  (declare main (Void -> ParseResult F64))
+  (define (main)
+    (parse-source "1 - 2 * 3" (parse-1))))
+
+(coalton (main))

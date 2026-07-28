@@ -2,7 +2,9 @@
   (:use
    #:coalton
    #:coalton-prelude
-   #:coalton/math/integral)
+   #:parsenip/sources
+   ;; #:coalton/math/integral)
+   )
   (:import-from #:serapeum
    #:parse-float)
   (:import-from #:coalton/experimental/loops
@@ -10,7 +12,6 @@
    #:dorange
    #:dotimes)
   (:local-nicknames
-   (:ch #:coalton/char)
    (:t #:coalton/types)
    (:l #:coalton/list)
    (:la #:coalton/lisparray)
@@ -22,23 +23,6 @@
    (:b #:coalton/bits)
    )
   (:export
-   ;; BufferedSource
-   #:BufferedSource
-   #:new-buffered-source
-
-   ;; Accumulator
-   #:Accumulator
-   #:initial-accumulator
-   #:initial-accumulator-with
-   #:accumulate
-   #:finalize
-
-   ;; Source
-   #:Source
-   #:initial-cursor
-   #:advance-n
-   #:curse
-
    ;; Parser type
    #:ParseError
    #:Context
@@ -48,6 +32,8 @@
    ;; Combinators
    #:partial
    #:label
+   #:parse-fail
+   #:cut
    #:eof
    #:flatten-fail
    #:peek
@@ -57,21 +43,9 @@
    #:many
    #:many_
    #:many1
+   #:skip-many
    #:sep-by
    #:sep-by1
-
-   ;; Parsing Text
-   #:int-char?
-   #:dec-char?
-   #:ws-char?
-   #:chars->str
-   #:parse-float?
-   
-   #:next-int
-   #:next-decimal
-
-   ;; Source Specific Parsers
-   #:reclaim
 
    ;; Top-Level Runners
    #:parse-source
@@ -81,156 +55,6 @@
 (cl:in-package #:parsenip)
 
 (named-readtables:in-readtable coalton:coalton)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;          Buffered Source          ;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;
-;;; Expandable Circular Buffer data structure
-;;; 
-
-(coalton-toplevel
-  (define-struct (CircularBuffer :a)
-    "Circular buffer that represents a slice of an infinite array. Head and tail track the
-current logical slice of the infinite array stored in the buffer."
-    (head (c:Cell UFix))
-    (tail (c:Cell UFix))
-    (offset (c:Cell UFix))
-    (buffer (c:Cell (la:LispArray :a)))
-    (length-log2 (c:Cell UFix)))
-
-  (declare new-circular-buffer (forall (:a) t:RuntimeRepr :a
-                                => &key (:initial-capacity UFix) -> CircularBuffer :a))
-  (define (new-circular-buffer &key (initial-capacity 1024))
-    "Note: initial-capacity MUST be a power of 2."
-    (let element-type = (t:runtime-repr (the (t:Proxy :a) t:Proxy)))
-    (let buffer =
-      (lisp (-> la:LispArray :a) (initial-capacity element-type)
-        (cl:make-array initial-capacity :element-type element-type)))
-    (CircularBuffer
-     (c:new 0)
-     (c:new 0)
-     (c:new 0)
-     (c:new buffer)
-     (c:new (1- (lisp (-> UFix) (initial-capacity)
-                  (cl:integer-length initial-capacity))))))
-
-  (inline)
-  (declare %physical-index (CircularBuffer :a * UFix -> UFix))
-  (define (%physical-index cbuffer i)
-    (b:ldb (c:read (.length-log2 cbuffer)) 0 (- i (c:read (.offset cbuffer)))))
-
-  (inline)
-  (declare at# (CircularBuffer :a * UFix -> :a))
-  (define (at# cbuffer i)
-    "Get element `i` in `cbuffer` with no bounds checking."
-    (la:aref (c:read (.buffer cbuffer))
-             (%physical-index cbuffer i)))
-
-  (declare %expand (CircularBuffer :a -> Void))
-  (define (%expand cbuffer)
-    "Expand a circular buffer by a single power of 2. Sets the current logical head to
-physical index 0 in the new buffer."
-    (let old-buffer = (c:read (.buffer cbuffer)))
-    (let old-length = (la:length old-buffer))
-    (let new-length = (* 2 old-length))
-    (let new-length-log2 = (1+ (c:read (.length-log2 cbuffer))))
-    (let new-buffer =
-      (lisp (-> la:LispArray :a) (new-length)
-        (cl:make-array new-length)))
-    (let new-offset = (c:read (.head cbuffer)))
-    (dorange (i (c:read (.head cbuffer)) (c:read (.tail cbuffer)))
-      (la:set! new-buffer (- i new-offset) (at# cbuffer i)))
-    (c:write! (.offset cbuffer) (c:read (.head cbuffer)))
-    (c:write! (.buffer cbuffer) new-buffer)
-    (c:write! (.length-log2 cbuffer) new-length-log2)
-    (values))
-
-  (inline)
-  (declare set# (CircularBuffer :a * UFix * :a -> Void))
-  (define (set# cbuffer i elt)
-    "Set `i` in `cbuffer` to `elt`. Does no bounds checking."
-    (la:set! (c:read (.buffer cbuffer))
-             (%physical-index cbuffer i)
-             elt))
-
-  (declare set (CircularBuffer :a * UFix * :a -> Boolean))
-  (define (set cbuffer i elt)
-    "Attempt to set `i` in `cbuffer` to `elt`. Fails and returns `false` if `i` is out of
-bounds."
-    (if (or (< i (c:read (.head cbuffer)))
-            (>= i (c:read (.tail cbuffer))))
-        False
-        (progn
-          (set# cbuffer i elt)
-          True)))
-
-  (declare push (CircularBuffer :a * :a -> Void))
-  (define (push cbuffer elt)
-    "Push `elt` onto the end of `cbuffer`, expanding if necessary."
-    (when (== (la:length (c:read (.buffer cbuffer)))
-              (- (c:read (.tail cbuffer)) (c:read (.head cbuffer))))
-      (%expand cbuffer))
-    (set# cbuffer (c:read (.tail cbuffer)) elt)
-    (c:increment! (.tail cbuffer))
-    (values))
-
-  (declare reclaim-upto (CircularBuffer :a * UFix -> Boolean))
-  (define (reclaim-upto cbuffer pos)
-    "Try to reclaim logical positions up to `pos`. Retains `pos` in the buffer. Returns
-`False` if out of bounds."
-    (cond
-      ((> pos (c:read (.tail cbuffer)))
-       False)
-      ((< pos (c:read (.head cbuffer)))
-       False)
-      (True
-       (c:write! (.head cbuffer) pos)
-       True)))
-  )
-
-;;;
-;;; Buffered Source
-;;; 
-
-(coalton-toplevel
-  (define-struct (BufferedSource :a)
-    (buffer (CircularBuffer :a))
-    (fill (Void -> Optional :a)))
-
-  (declare new-buffered-source (t:RuntimeRepr :a => (Void -> Optional :a) -> BufferedSource :a))
-  (define (new-buffered-source fill)
-    (BufferedSource
-     (new-circular-buffer)
-     fill))
-
-  (declare fill-until% (BufferedSource :a * UFix -> Boolean))
-  (define (fill-until% s tail)
-    "Fill the buffered source until it reaches `tail`. Returns `False` if it failed to
-fill enough values to reach `tail`."
-    (let diff = (- (1+ tail) (c:read (.tail (.buffer s)))))
-    (when (> diff 0)
-      (dotimes (_ diff)
-        (match ((.fill s))
-          ((None)
-           (return False))
-          ((Some x)
-           (push (.buffer s) x)))))
-    True)
-
-  (declare at-bs% (BufferedSource :a * UFix -> Optional :a))
-  (define (at-bs% s i)
-    (let buf = (.buffer s))
-    (cond
-      ((< i (c:read (.head buf)))
-       None)
-      ((>= i (c:read (.tail buf)))
-       (if (fill-until% s i)
-           (Some (at# buf i))
-           None))
-      (True
-       (Some (at# buf i))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;            Parser Type            ;;;
@@ -340,134 +164,6 @@ transformed to an `:r`."
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;           Accumulator             ;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(coalton-toplevel
-  (define-class (Accumulator :a :f (:a -> :f) (:f -> :a))
-    "A type that can accumulate values and then finalize the accumulation. Is allowed to
-mutate internally."
-    (initial-accumulator (&key (:initial (Optional (:a :t))) -> :a :t))
-    (initial-accumulator-with (:t -> :a :t))
-    (accumulate (:a :t * :t -> :a :t))
-    (finalize (:a :t -> :f :t))))
-
-(coalton-toplevel
-  (define-instance (Accumulator List List)
-    (inline)
-    (define (initial-accumulator &key (initial None)) 
-      (match initial
-        ((Some lst)
-         lst)
-        ((None)
-         Nil)))
-    (inline)
-    (define (initial-accumulator-with init)
-      [init])
-    (inline)
-    (define (accumulate lst t)
-      (Cons t lst))
-    (define finalize reverse))
-
-  ;; TODO: Add a FrozenVector type or something
-  (define-instance (Accumulator Vector Vector)
-    (inline)
-    (define (initial-accumulator &key (initial None))
-      (match initial
-        ((None)
-         (v:new))
-        ((Some vec)
-         (v:copy vec))))
-    (inline)
-    (define (initial-accumulator-with init)
-      [init])      
-    (inline)
-    (define (accumulate vec t)
-      (v:push! t vec)
-      vec)
-    (define finalize id)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;         Source & Cursor           ;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(coalton-toplevel
-  (define-class (Source :s :c :t (:s -> :c :t))
-    (initial-cursor
-     "Cursor pointing to the beginning of `source`."
-     (:s -> :c))
-    (advance-n
-     "Attempt to advance `cursor` by `n`. Returns `None` if EOF."
-     (:s * :c * UFix -> Optional :c))
-    (curse
-     "Attempt to get the value at `cursor` in `source`. Returns `None` if EOF."
-     (:s * :c -> Optional :t))))
-
-(coalton-toplevel
-  (define-instance (Source (List :t) (List :t) :t)
-    (define initial-cursor id)
-    (inline)
-    (define (advance-n _ lst n)
-      (rec % ((n n)
-              (rem lst))
-        (if (zero? n)
-            (Some rem)
-            (match rem
-              ((Nil)
-               None)
-              ((Cons _ tail)
-               (% (1- n) tail))))))
-    (inline)
-    (define (curse _ lst)
-      (l:head lst))))
-
-(coalton-toplevel
-  (define-instance (Source (Vector :t) UFix :t)
-    (inline)
-    (define (initial-cursor _)
-      0)
-    (inline)
-    (define (advance-n vec i n)
-      (let next = (+ i n))
-      ;; > instead of >= because EOF must be a valid cursor position.
-      (if (> next (v:length vec))
-          None
-          (Some next)))
-    (inline)
-    (define (curse vec i)
-      (v:index i vec))))
-
-(coalton-toplevel
-  (define-instance (Source String UFix Char)
-    (inline)
-    (define (initial-cursor _)
-      0)
-    (inline)
-    (define (advance-n s i n)
-      (let next = (+ i n))
-      (if (> next (s:length s))
-          None
-          (Some next)))
-    (inline) (define (curse s i)
-      (s:ref s i))))
-
-(coalton-toplevel
-  (define-instance (Source (BufferedSource :t) UFix :t)
-    (inline)
-    (define (initial-cursor _)
-      0)
-    (inline)
-    (define (advance-n s i n)
-      (let next = (+ i n))
-      (if (fill-until% s (1- next))
-          (Some next)
-          None))
-    (inline)
-    (define (curse s i)
-      (at-bs% s i))))
-      
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;            Parser API             ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -510,6 +206,22 @@ mutate internally."
                     ƒscxe.(on-un s c (Cons context x) e)
                     ƒscxe.(on-rec s c (Cons context x) e)
                     on-s))))
+
+  (declare parse-fail (String -> Parser :s :c :r :a))
+  (define (parse-fail msg)
+    "Raise a recoverable failure with `msg`."
+    (Parser%
+     (fn (s c _on-un on-rec _on-s)
+       (on-rec s c Nil msg))))
+
+  (declare cut (Source :s :c :t => Void -> Parser :s :c :r Unit))
+  (define (cut)
+    "Allow the source to reclaim memory upto the current cursor. After this is called, the
+parser may not be able to backtrack to before the current cursor position!"
+    (Parser%
+     (fn (s c _on-un _on-rec on-s)
+       (cut! s c)
+       (on-s s c Unit))))
   
   (declare eof (Source :s :c :t => Void -> Parser :s :c :r Unit))
   (define (eof)
@@ -601,6 +313,18 @@ if it does not."
      (let acc = (initial-accumulator-with t))
      (map finalize (parse-into acc p))))
 
+  ;; TODO: Convert this into a loop or tail recursive or something
+  (declare skip-many (Parser :s :c :r :t -> Parser :s :c :r Unit))
+  (define (skip-many p)
+    "Skip successes of `p` until it fails."
+    (Parser%
+     (fn (s c on-un _on-rec on-s)
+       (let ((on-inner-rec ƒsc__.(on-s s c Unit))
+             (on-inner-s
+               (fn (s c _)
+                 (run-parser% p s c on-un on-inner-rec on-inner-s))))
+         (run-parser% p s c on-un on-inner-rec on-inner-s)))))
+
   (declare sep-by (Accumulator :a :f => Parser :s :c :r :t * Parser :s :c :r :x -> Parser :s :c :r (:f :t)))
   (define (sep-by p sep)
     "Parses zero or more occurences of `p`, separated by `sep`. Returns the values
@@ -624,83 +348,6 @@ returned by `p`. Must succeed at least once."
   )
 
 ;;;
-;;; Parsing text
-;;; 
-
-(coalton-toplevel
-  (inline)
-  (declare int-char? (Char -> Boolean))
-  (define (int-char? c)
-    "Returns `True` if `c` could be part of a properly parsed integer. Includes digits,
-'+', and '-'."
-    (cond
-      ((ch:ascii-digit? c) True)
-      ((== c #\-) True)
-      ((== c #\+) True)
-      (True False)))
-
-  (inline)
-  (declare dec-char? (Char -> Boolean))
-  (define (dec-char? c)
-    "Returns `True` if `c` could be part of a properly parsed decimal. Includes digits,
-'+', '-', and '.'."
-    (or (int-char? c)
-        (== c #\.)))
-
-  (inline)
-  (declare ws-char? (Char -> Boolean))
-  (define (ws-char? c)
-    "Return True if `c` is a whitespace character. Included: space, newline, and tab."
-    (match c
-      (#\Space True)
-      (#\Newline True)
-      (#\Tab True)
-      (_ False)))
-
-  (inline)
-  (declare chars->str (Vector Char -> String))
-  (define (chars->str vec)
-    (lisp (-> String) (vec)
-      (cl:coerce vec 'cl:string)))
-  
-  (declare next-int (Source :s :c Char => Void -> Parser :s :c :r Integer))
-  (define (next-int)
-    "Parse the next integer. Accepts + or - signs. Fails if a valid integer is not parsed."
-    (flatten-fail
-     (map ƒc.(s:parse-int (chars->str c))
-          (many1 (next-if int-char?)))))
-
-  (inline)
-  (declare parse-float? (String -> Optional F64))
-  (define (parse-float? s)
-    (catch (Some
-            (lisp (-> F64) (s)
-              (parse-float s :junk-allowed cl:nil :type 'cl:double-float)))
-      (_ None)))
-
-  (declare next-decimal (Source :s :c Char => Void -> Parser :s :c :r F64))
-  (define (next-decimal)
-    "Parse the next decimal number. Accepts + or - signs. Does not accept exponents."
-    (flatten-fail
-     (map ƒc.(parse-float? (chars->str c))
-          (many1 (next-if dec-char?))))))
-
-;;;
-;;; Source Specific
-;;;
-
-(coalton-toplevel
-  (declare reclaim (Source (CircularBuffer :t) UFix :t => Void -> Parser (CircularBuffer :t) UFix :r Unit))
-  (define (reclaim)
-    "Reclaim memory in the source `CircularBuffer` upto the current cursor. After this is
-called, the parser will NOT be able to backtrack to before the current cursor position!"
-    (Parser%
-     (fn (s c _on-un _on-rec on-s)
-       (reclaim-upto s c)
-       (on-s s c Unit))))
-  )
-
-;;;
 ;;; Top-Level Runners
 ;;; 
 
@@ -719,41 +366,5 @@ called, the parser will NOT be able to backtrack to before the current cursor po
     "Parse `fs` using `parser`. Will consume the stream."
     (let buf = (new-buffered-source ƒ.(into (fl:read-char fs))))
     (parse-source buf parser))
-  )
-
-(coalton-toplevel
-
-  (declare parse-sep-ints (Source :s :c Char => Void -> Parser :s :c (Vector Integer) (Vector Integer)))
-  (define (parse-sep-ints)
-    (label "Parsing '|' delimited integers"
-           (sep-by (next-int) (next-if ƒc.(== c #\|)))))
-  
-  (declare main (Void -> Void))
-  (define (main)
-    (let strs = (v:make "123|21|1"
-                        "1|2|3abc2|3"
-                        "1|abc"
-                        "1|"
-                        "1"
-                        "1abc"
-                        "abc1|2|3"))
-    (doiter (s strs)
-      (let result = (parse-source s (take-left (parse-sep-ints)
-                                               (eof))))
-      (lisp (-> :a) (s result)
-        (cl:format cl:t "~a: ~a~%" s result))
-      (values)))
-
-  (declare main-file (Void -> Result fl:FileError (ParseResult (Vector Integer))))
-  (define (main-file)
-    (fl:with-open-file "file.txt"
-      (fn (fs)
-        (Ok (parse-file-chars! fs
-                               (take-left
-                                (parse-sep-ints)
-                                (label "Parsing final EOF"
-                                       (do
-                                        (many_ (next-if ws-char?))
-                                        (eof)))))))))
   )
 

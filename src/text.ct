@@ -1,0 +1,94 @@
+(cl:defpackage #:parsenip/text
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:parsenip/sources
+   #:parsenip)
+  (:import-from #:serapeum
+   #:parse-float)
+  (:local-nicknames
+   (:ch #:coalton/char)
+   (:s #:coalton/string)
+   )
+  (:export
+   ;; Parsing Text
+   #:int-char?
+   #:dec-char?
+   #:ws-char?
+   #:chars->str
+   #:parse-float?
+   
+   #:skip-ws
+   #:next-int
+   #:next-decimal
+   ))
+
+(cl:in-package #:parsenip/text)
+
+(named-readtables:in-readtable coalton:coalton)
+
+;;;
+;;; Parsing text
+;;; 
+
+(coalton-toplevel
+  (inline)
+  (declare int-char? (Char -> Boolean))
+  (define (int-char? c)
+    "Returns `True` if `c` could be part of a properly parsed integer. Includes digits,
+'+', and '-'."
+    (cond
+      ((ch:ascii-digit? c) True)
+      ((== c #\-) True)
+      ((== c #\+) True)
+      (True False)))
+
+  (inline)
+  (declare dec-char? (Char -> Boolean))
+  (define (dec-char? c)
+    "Returns `True` if `c` could be part of a properly parsed decimal. Includes digits,
+'+', '-', and '.'."
+    (or (int-char? c)
+        (== c #\.)))
+
+  (inline)
+  (declare parse-float? (String -> Optional F64))
+  (define (parse-float? s)
+    (catch (Some
+            (lisp (-> F64) (s)
+              (parse-float s :junk-allowed cl:nil :type 'cl:double-float)))
+      (_ None)))
+
+  (inline)
+  (declare ws-char? (Char -> Boolean))
+  (define (ws-char? c)
+    "Return True if `c` is a whitespace character. Included: space, newline, and tab."
+    (match c
+      (#\Space True)
+      (#\Newline True)
+      (#\Tab True)
+      (_ False)))
+
+  (inline)
+  (declare chars->str (Vector Char -> String))
+  (define (chars->str vec)
+    (lisp (-> String) (vec)
+      (cl:coerce vec 'cl:string)))
+
+  (declare skip-ws (Source :s :c Char => Void -> Parser :s :c :r Unit))
+  (define (skip-ws)
+    (skip-many (next-if ws-char?)))
+  
+  (declare next-int (Source :s :c Char => Void -> Parser :s :c :r Integer))
+  (define (next-int)
+    "Parse the next integer. Accepts + or - signs. Fails if a valid integer is not parsed."
+    (flatten-fail
+     (map ƒc.(s:parse-int (chars->str c))
+          (many1 (next-if int-char?)))))
+
+  (declare next-decimal (Source :s :c Char => Void -> Parser :s :c :r F64))
+  (define (next-decimal)
+    "Parse the next decimal number. Accepts + or - signs. Does not accept exponents."
+    (flatten-fail
+     (map ƒc.(parse-float? (chars->str c))
+          (many1 (next-if dec-char?))))))
