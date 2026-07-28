@@ -34,13 +34,14 @@
    #:label
    #:parse-err
    #:parse-fail
-   #:cut
+   #:commit
    #:eof
    #:flatten-opt
    #:look-ahead
    #:peek
    #:next
    #:next-if
+   #:next-token
    #:parse-into
    #:many
    #:many_
@@ -74,10 +75,11 @@
   (define-type-alias ParseError String)
   (define-type-alias Context (List ParseError))
 
-  (define-type-alias (ParseResult :r) (Result (Tuple Context ParseError) :r))
+  (define-type-alias (ParseResult :c :r) (Result (Tuple3 :c Context ParseError) :r))
   
-  (define-type-alias (Failure :s :c :r) (:s * :c * Context * ParseError -> ParseResult :r))
-  (define-type-alias (Success :s :c :r :a) (:s * :c * :a -> ParseResult :r))
+  (define-type-alias (UnrecFailure :s :c :r) (:s * :c * Context * ParseError -> ParseResult :c :r))
+  (define-type-alias (RecFailure :s :c :r) (:s * :c * ParseError -> ParseResult :c :r))
+  (define-type-alias (Success :s :c :r :a) (:s * :c * :a -> ParseResult :c :r))
   
   (repr :transparent)
   (define-type (Parser :s :c :r :a)
@@ -86,15 +88,15 @@ transformed to an `:r`."
     (Parser%
      ( :s ;; source
      * :c ;; active cursor
-     * (Failure :s :c :r) ;; On unrecoverable failure continuation
-     * (Failure :s :c :r) ;; On recoverable failure continuation
-     * (Success :s :c :r :a) ;; On success continuation
-     -> ParseResult :r)))
+     * (UnrecFailure :s :c :r) ;; On unrecoverable failure continuation
+     * (RecFailure :s :c :r)   ;; On recoverable failure continuation
+     * (Success :s :c :r :a)   ;; On success continuation
+     -> ParseResult :c :r)))
      
   (inline)
   (declare run-parser% (Parser :s :c :r :a *
-                        :s * :c * (Failure :s :c :r) * (Failure :s :c :r) * (Success :s :c :r :a)
-                        -> ParseResult :r))
+                        :s * :c * (UnrecFailure :s :c :r) * (RecFailure :s :c :r) * (Success :s :c :r :a)
+                        -> ParseResult :c :r))
   (define (run-parser% (Parser% f-parser) source cursor on-unrecoverable on-recoverable on-success)
     (f-parser source cursor on-unrecoverable on-recoverable on-success))
   )
@@ -154,13 +156,13 @@ transformed to an `:r`."
     (define empty
       (Parser%
        (fn (s c _ on-rec _)
-         (on-rec s c Nil ""))))
+         (on-rec s c ""))))
     (inline)
     (define (alt p1 p2)
       (Parser% 
        (fn (s c on-un on-rec on-s)
          (run-parser% p1 s c on-un
-                      (fn (_s _c _ctx _err)
+                      (fn (_s _c _err)
                         (run-parser% p2 s c on-un on-rec on-s))
                       on-s)))))
   )
@@ -178,14 +180,14 @@ transformed to an `:r`."
 (defmacro advance-n-safe (s c n on-rec (sym) cl:&body body)
   `(match (advance-n ,s ,c ,n)
      ((None)
-      (,on-rec ,s ,c Nil "EOF reached."))
+      (,on-rec ,s ,c "EOF reached."))
      ((Some ,sym)
       ,@body)))
 
 (defmacro curse-next-safe (s c on-rec (c-sym t-sym) cl:&body body)
   `(match (curse ,s ,c)
      ((None)
-      (,on-rec ,s ,c Nil "EOF reached."))
+      (,on-rec ,s ,c "EOF reached."))
      ((Some ,t-sym)
       (advance-n-safe ,s ,c 1 ,on-rec (,c-sym)
         ,@body))))
@@ -200,13 +202,14 @@ transformed to an `:r`."
                     ƒsca.(on-s s c (Tuple3 s c a))))))
   
   (declare label (String * Parser :s :c :r :a -> Parser :s :c :r :a))
-  (define (label context parser)
-    "Label `parser` with `context` for error messages."
+  (define (label msg parser)
+    "Label `parser` with `msg` for error messages. Adds to the context of unrecoverable
+errors, and replaces any existing error message for recoverable errors."
     (Parser%
      (fn (s c on-un on-rec on-s)
        (run-parser% parser s c
-                    ƒscxe.(on-un s c (Cons context x) e)
-                    ƒscxe.(on-rec s c (Cons context x) e)
+                    ƒscxe.(on-un s c (Cons msg x) e)
+                    ƒsc_.(on-rec s c msg)
                     on-s))))
 
   (declare parse-err (String -> Parser :s :c :r :a))
@@ -221,16 +224,18 @@ transformed to an `:r`."
     "Raise a recoverable failure with `msg`."
     (Parser%
      (fn (s c _on-un on-rec _on-s)
-       (on-rec s c Nil msg))))
+       (on-rec s c msg))))
 
-  (declare cut (Source :s :c :t => Void -> Parser :s :c :r Unit))
-  (define (cut)
-    "Allow the source to reclaim memory upto the current cursor. After this is called, the
-parser may not be able to backtrack to before the current cursor position!"
+  (declare commit (Source :s :c :t => Parser :s :c :r :a -> Parser :s :c :r :a))
+  (define (commit p)
+    "Commit to this branch of parsing, `p`, and disallow any further backtracking. Any
+recoverable errors that cross this commit are raised as unrecoverable errors.
+
+Also reclaims any available memory in the parser's source up to the current cursor."
     (Parser%
-     (fn (s c _on-un _on-rec on-s)
-       (cut! s c)
-       (on-s s c Unit))))
+     (fn (s c on-un _ on-s)
+       (reclaim! s c)
+       (run-parser% p s c on-un ƒsce.(on-un s c Nil e) on-s))))
   
   (declare eof (Source :s :c :t => Void -> Parser :s :c :r Unit))
   (define (eof)
@@ -241,8 +246,8 @@ parser may not be able to backtrack to before the current cursor position!"
          ((None)
           (on-s s c Unit))
          ((Some t)
-          (on-rec s c Nil (lisp (-> String) (t)
-                            (cl:format cl:nil "Expected EOF. Got: ~a" t))))))))
+          (on-rec s c (lisp (-> String) (t)
+                        (cl:format cl:nil "Expected EOF. Got: ~a" t))))))))
 
   (declare flatten-opt (Parser :s :c :r (Optional :t) -> Parser :s :c :r :t))
   (define (flatten-opt p)
@@ -255,7 +260,7 @@ parser may not be able to backtrack to before the current cursor position!"
                         ((Some t)
                          (on-s s2 c2 t))
                         ((None)
-                         (on-rec s c Nil "Unexpected None result."))))))))
+                         (on-rec s c "Unexpected None result."))))))))
 
   (declare look-ahead (Parser :s :c :r :t -> Parser :s :c :r :t))
   (define (look-ahead p)
@@ -272,7 +277,7 @@ parser may not be able to backtrack to before the current cursor position!"
      (fn (s c _ on-rec on-s)
        (match (curse s c)
          ((None)
-          (on-rec s c Nil "EOF reached."))
+          (on-rec s c "EOF reached."))
          ((Some t)
           (on-s s c t))))))
     
@@ -293,7 +298,13 @@ if it does not."
        (curse-next-safe s c on-rec (c2 t)
          (if (pred t)
              (on-s s c2 t)
-             (on-rec s c Nil "Token failed to satisfy predicate."))))))
+             (on-rec s c "Token failed to satisfy predicate."))))))
+
+  (declare next-token ((Source :s :c :t) (Eq :t) => :t -> Parser :s :c :r :t))
+  (define (next-token t)
+    "Parse the current token and advance the cursor by 1 if it matches `t`, failing if it
+does not."
+    (next-if ƒx.(== x t)))
 
   ;; TODO: Convert this to loop or... make tail recursive jesus christ
   (declare parse-into (Accumulator :a :f => :a :t * Parser :s :c :r :t -> Parser :s :c :r (:a :t)))
@@ -304,7 +315,7 @@ if it does not."
        (let acc = (c:new acc))
        (let last-successful-c = (c:new c))
        (let ((on-inner-rec
-               (fn (s _ _ _)
+               (fn (s _ _)
                  (on-s s (c:read last-successful-c) (c:read acc))))
              (on-inner-s
                (fn (s c t)
@@ -336,7 +347,7 @@ if it does not."
     "Skip successes of `p` until it fails."
     (Parser%
      (fn (s c on-un _on-rec on-s)
-       (let ((on-inner-rec ƒsc__.(on-s s c Unit))
+       (let ((on-inner-rec ƒsc_.(on-s s c Unit))
              (on-inner-s
                (fn (s c _)
                  (run-parser% p s c on-un on-inner-rec on-inner-s))))
@@ -369,16 +380,16 @@ returned by `p`. Must succeed at least once."
 ;;; 
 
 (coalton-toplevel
-  (declare parse-source (Source :s :c :t => :s * Parser :s :c :r :r -> ParseResult :r))
+  (declare parse-source (Source :s :c :t => :s * Parser :s :c :r :r -> ParseResult :c :r))
   (define (parse-source source parser)
     (run-parser% parser
                  source
                  (initial-cursor source)
-                 ƒ__xe.(Err (Tuple x e))
-                 ƒ__xe.(Err (Tuple x e))
+                 ƒ_cxe.(Err (Tuple3 c x e))
+                 ƒ_ce.(Err (Tuple3 c Nil e))
                  ƒ__r.(Ok r)))
 
-  (declare parse-file-chars! (fl:FileStream Char * Parser (BufferedSource Char) UFix :r :r -> ParseResult :r))
+  (declare parse-file-chars! (fl:FileStream Char * Parser (BufferedSource Char) UFix :r :r -> ParseResult UFix :r))
   (define (parse-file-chars! fs parser)
     "Parse `fs` using `parser`. Will consume the stream."
     (let buf = (new-buffered-source ƒ.(into (fl:read-char fs))))

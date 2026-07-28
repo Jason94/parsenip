@@ -29,7 +29,7 @@
    #:initial-cursor
    #:advance-n
    #:curse
-   #:cut!
+   #:reclaim!
 
    ;; Accumulator
    #:Accumulator
@@ -208,7 +208,7 @@ fill enough values to reach `tail`."
     (curse
      "Attempt to get the value at `cursor` in `source`. Returns `None` if EOF."
      (:s * :c -> Optional :t))
-    (cut!
+    (reclaim!
      "Signal that the parser will never backtrack before `cursor`. Is allowed to mutate
 the source, such that any curses to `cursor` or later will not be affected. Allows
 reclamation of memory for unbounded sources."
@@ -236,7 +236,7 @@ reclamation of memory for unbounded sources."
     (define (curse _ lst)
       (l:head lst))
     (inline)
-    (define (cut! _ _)
+    (define (reclaim! _ _)
       (values))))
 
 (coalton-toplevel
@@ -255,7 +255,7 @@ reclamation of memory for unbounded sources."
     (define (curse vec i)
       (v:index i vec))
     (inline)
-    (define (cut! _ _)
+    (define (reclaim! _ _)
       (values))))
 
 (coalton-toplevel
@@ -273,7 +273,7 @@ reclamation of memory for unbounded sources."
     (define (curse s i)
       (s:ref s i))
     (inline)
-    (define (cut! _ _)
+    (define (reclaim! _ _)
       (values))))
 
 (coalton-toplevel
@@ -291,7 +291,7 @@ reclamation of memory for unbounded sources."
     (define (curse s i)
       (at-bs% s i))
     (inline)
-    (define (cut! s c)
+    (define (reclaim! s c)
       (reclaim-upto (.buffer s) c)
       (values))))
 
