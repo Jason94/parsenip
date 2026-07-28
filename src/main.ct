@@ -171,26 +171,26 @@ transformed to an `:r`."
 ;;;            Parser API             ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; NOTE: Following attoparsec, parsers should always backtrack on failure.
+;;;
+;;; Standard constant error messages
+;;;
+
+(coalton-toplevel
+  (define eof-err "Unexpected EOF reached."))
+
  
 ;;;
 ;;; Combinators
 ;;;
 
-(defmacro advance-n-safe (s c n on-rec (sym) cl:&body body)
-  `(match (advance-n ,s ,c ,n)
-     ((None)
-      (,on-rec ,s ,c "EOF reached."))
-     ((Some ,sym)
-      ,@body)))
+;; NOTE: Following attoparsec, parsers should always backtrack on failure.
 
-(defmacro curse-next-safe (s c on-rec (c-sym t-sym) cl:&body body)
-  `(match (curse ,s ,c)
+(defmacro step-safe (s c on-rec (t-sym c-sym) cl:&body body)
+  `(match (step ,s ,c)
      ((None)
-      (,on-rec ,s ,c "EOF reached."))
-     ((Some ,t-sym)
-      (advance-n-safe ,s ,c 1 ,on-rec (,c-sym)
-        ,@body))))
+      (,on-rec ,s ,c eof-err))
+     ((Some (Tuple ,t-sym ,c-sym))
+      ,@body)))
 
 (coalton-toplevel
   (declare partial (Parser :s :c :r :a -> Parser :s :c :r (Tuple3 :s :c :a)))
@@ -286,8 +286,8 @@ Also reclaims any available memory in the parser's source up to the current curs
     "Parse the current token and advance the cursor by 1. Fails if no tokens remain."
     (Parser%
      (fn (s c _ on-rec on-s)
-       (curse-next-safe s c on-rec (c2 t)
-         (on-s s c2 t)))))
+       (step-safe s c on-rec (t c)
+         (on-s s c t)))))
 
   (declare next-if (Source :s :c :t => (:t -> Boolean) -> Parser :s :c :r :t))
   (define (next-if pred)
@@ -295,7 +295,7 @@ Also reclaims any available memory in the parser's source up to the current curs
 if it does not."
     (Parser%
      (fn (s c _on-un on-rec on-s)
-       (curse-next-safe s c on-rec (c2 t)
+       (step-safe s c on-rec (t c2)
          (if (pred t)
              (on-s s c2 t)
              (on-rec s c "Token failed to satisfy predicate."))))))

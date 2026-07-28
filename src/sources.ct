@@ -29,6 +29,7 @@
    #:initial-cursor
    #:advance-n
    #:curse
+   #:step
    #:reclaim!
 
    ;; Accumulator
@@ -180,6 +181,10 @@ fill enough values to reach `tail`."
            (push (.buffer s) x)))))
     True)
 
+  (declare at-bs%# (BufferedSource :a * UFix -> :a))
+  (define (at-bs%# s i)
+    (at# (.buffer s) i))
+
   (declare at-bs% (BufferedSource :a * UFix -> Optional :a))
   (define (at-bs% s i)
     (let buf = (.buffer s))
@@ -208,6 +213,10 @@ fill enough values to reach `tail`."
     (curse
      "Attempt to get the value at `cursor` in `source`. Returns `None` if EOF."
      (:s * :c -> Optional :t))
+    (step
+     "Attempt to lookup the value at `cursor` and advance the cursor by 1. Returns `None`
+if EOF."
+     (:s * :c -> Optional (Tuple :t :c)))
     (reclaim!
      "Signal that the parser will never backtrack before `cursor`. Is allowed to mutate
 the source, such that any curses to `cursor` or later will not be affected. Allows
@@ -236,6 +245,13 @@ reclamation of memory for unbounded sources."
     (define (curse _ lst)
       (l:head lst))
     (inline)
+    (define (step _ lst)
+      (match lst
+        ((Nil)
+         None)
+        ((Cons v next)
+         (Some (Tuple v next)))))
+    (inline)
     (define (reclaim! _ _)
       (values))))
 
@@ -255,6 +271,13 @@ reclamation of memory for unbounded sources."
     (define (curse vec i)
       (v:index i vec))
     (inline)
+    (define (step vec i)
+      (let next = (1+ i))
+      ;; > instead of >= because EOF must be a valid cursor position.
+      (if (> next (v:length vec))
+          None
+          (Some (Tuple (v:index-unsafe i vec) next))))
+    (inline)
     (define (reclaim! _ _)
       (values))))
 
@@ -273,6 +296,13 @@ reclamation of memory for unbounded sources."
     (define (curse s i)
       (s:ref s i))
     (inline)
+    (define (step s i)
+      (let next = (1+ i))
+      ;; > instead of >= because EOF must be a valid cursor position.
+      (if (> next (s:length s))
+          None
+          (Some (Tuple (s:ref-unchecked s i) next))))
+    (inline)
     (define (reclaim! _ _)
       (values))))
 
@@ -290,6 +320,12 @@ reclamation of memory for unbounded sources."
     (inline)
     (define (curse s i)
       (at-bs% s i))
+    (inline)
+    (define (step s i)
+      (let next = (1+ i))
+      (if (fill-until% s next)
+          (Some (Tuple (at-bs%# s i) next))
+          None))
     (inline)
     (define (reclaim! s c)
       (reclaim-upto (.buffer s) c)
