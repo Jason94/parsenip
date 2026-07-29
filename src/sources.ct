@@ -2,10 +2,7 @@
   (:use
    #:coalton
    #:coalton-prelude)
-  ;; (:import-from #:serapeum
-  ;;  #:parse-float)
   (:import-from #:coalton/experimental/loops
-   ;; #:doiter
    #:dorange
    #:dotimes)
   (:local-nicknames
@@ -13,8 +10,6 @@
    (:l #:coalton/list)
    (:la #:coalton/lisparray)
    (:v #:coalton/vector)
-   ;; (:f #:coalton/format)
-   ;; (:fl #:coalton/file)
    (:c #:coalton/cell)
    (:s #:coalton/string)
    (:b #:coalton/bits)
@@ -35,8 +30,7 @@
    ;; Accumulator
    #:Accumulator
    #:initial-accumulator
-   #:initial-accumulator-with
-   #:accumulate
+   #:accumulate!
    #:finalize
    ))
 
@@ -339,28 +333,44 @@ reclamation of memory for unbounded sources."
   (define-class (Accumulator :a :f (:a -> :f) (:f -> :a))
     "A type that can accumulate values and then finalize the accumulation. Is allowed to
 mutate internally."
-    (initial-accumulator (&key (:initial (Optional (:a :t))) -> :a :t))
-    (initial-accumulator-with (:t -> :a :t))
-    (accumulate (:a :t * :t -> :a :t))
+    (initial-accumulator (&key (:initial (Optional (:f :t))) -> :a :t))
+    (accumulate! (:a :t * :t -> Void))
     (finalize (:a :t -> :f :t))))
 
+(cl:defstruct list-accum%
+  (head% (cl:error "Must specify list head") :type cl:list :read-only cl:t)
+  (tail% cl:nil :type cl:list))
+
 (coalton-toplevel
-  (define-instance (Accumulator List List)
+  (repr :native list-accum%)
+  (define-type (ListAcc% :a))
+  
+  (define-instance (Accumulator ListAcc% List)
     (inline)
     (define (initial-accumulator &key (initial None)) 
       (match initial
-        ((Some lst)
-         lst)
         ((None)
-         Nil)))
+         (lisp (-> ListAcc% :a) ()
+           (cl:let ((sentinel (cl:cons cl:nil cl:nil)))
+             (make-list-accum% :head% sentinel :tail% sentinel))))
+        ((Some lst)
+         (lisp (-> ListAcc% :a) (lst)
+           (cl:let* ((cpy (cl:copy-list lst))
+                     (new-tail (cl:last cpy))
+                     (sentinel (cl:cons cl:nil cpy)))
+             (make-list-accum% :head% sentinel :tail% new-tail))))))
     (inline)
-    (define (initial-accumulator-with init)
-      [init])
-    (inline)
-    (define (accumulate lst t)
-      (Cons t lst))
-    (define finalize reverse))
+    (define (accumulate! lst t)
+      (lisp (-> :a) (lst t)
+        (cl:let ((new-tail (cl:cons t cl:nil)))
+          (cl:setf (cl:cdr (list-accum%-tail% lst)) new-tail
+                   (list-accum%-tail% lst) new-tail)))
+      (values))
+    (define (finalize lst)
+      (lisp (-> List :a) (lst)
+        (cl:rest (list-accum%-head% lst))))))
 
+(coalton-toplevel
   ;; TODO: Add a FrozenVector type or something
   (define-instance (Accumulator Vector Vector)
     (inline)
@@ -371,10 +381,7 @@ mutate internally."
         ((Some vec)
          (v:copy vec))))
     (inline)
-    (define (initial-accumulator-with init)
-      [init])      
-    (inline)
-    (define (accumulate vec t)
+    (define (accumulate! vec t)
       (v:push! t vec)
-      vec)
+      (values))
     (define finalize id)))

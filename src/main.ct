@@ -45,6 +45,7 @@
    #:many
    #:many_
    #:many1
+   #:many-till
    #:skip-many
    #:sep-by
    #:sep-by1
@@ -195,13 +196,14 @@ transformed to an `:r`."
 
 (coalton-toplevel
   (inline)
-  (declare partial (Parser :s :c :r :a -> Parser :s :c :r (Tuple3 :s :c :a)))
+  (declare partial (Parser :s :c :r :a -> Parser :s :c :r (Tuple :c :a)))
   (define (partial p)
-    "Return the unparsed source and cursor with the parse result. Useful for debugging."
+    "Return the active cursor with the parse result. Useful for debugging or performing
+a partial parse then resuming later."
     (Parser%
      (fn (s c on-un on-rec on-s)
        (run-parser% p s c on-un on-rec
-                    ƒsca.(on-s s c (Tuple3 s c a))))))
+                    ƒsca.(on-s s c (Tuple c a))))))
   
   (inline)
   (declare label (String * Parser :s :c :r :a -> Parser :s :c :r :a))
@@ -320,26 +322,26 @@ does not."
     (next-if ƒx.(== x t)))
 
   ;; TODO: Convert this to loop or... make tail recursive jesus christ
+  ;; Actually it seems like this this pattern is getting TCOd but I should run a test
   (inline)
-  (declare parse-into (Accumulator :a :f => :a :t * Parser :s :c :r :t -> Parser :s :c :r (:a :t)))
+  (declare parse-into (Accumulator :v :f => :v :a * Parser :s :c :r :a -> Parser :s :c :r (:v :a)))
   (define (parse-into acc p)
     "Run `p` until it fails, accumulating the results into `acc`."
     (Parser%
      (fn (s c on-un _on-rec on-s)
-       (let acc = (c:new acc))
        (let last-successful-c = (c:new c))
        (let ((on-inner-rec
                (fn (s _ _)
-                 (on-s s (c:read last-successful-c) (c:read acc))))
+                 (on-s s (c:read last-successful-c) acc)))
              (on-inner-s
                (fn (s c t)
-                 (c:write! acc (accumulate (c:read acc) t))
+                 (accumulate! acc t)
                  (c:write! last-successful-c c)
                  (run-parser% p s c on-un on-inner-rec on-inner-s))))
          (run-parser% p s c on-un on-inner-rec on-inner-s)))))
 
   (inline)
-  (declare many (Accumulator :a :f => Parser :s :c :r :t -> Parser :s :c :r (:f :t)))
+  (declare many (Accumulator :v :f => Parser :s :c :r :a -> Parser :s :c :r (:f :a)))
   (define (many p)
     "Repeat `p` until it fails, returning its results."
     (let acc = (initial-accumulator))
@@ -350,15 +352,36 @@ does not."
   (define many_ many)
 
   (inline)
-  (declare many1 (Accumulator :a :f => Parser :s :c :r :t -> Parser :s :c :r (:f :t)))
+  (declare many1 (Accumulator :v :f => Parser :s :c :r :a -> Parser :s :c :r (:f :a)))
   (define (many1 p)
     "Repeat `p` until it fails, returning its results. Must succeed at least once."
     (do
      (t <- (label "Expected at least 1 success." p))
-     (let acc = (initial-accumulator-with t))
+     (let acc = (initial-accumulator))
+     ;; TODO: Don't do this at home
+     (let _ = (accumulate! acc t))
      (map finalize (parse-into acc p))))
 
-  ;; TODO: Convert this into a loop or tail recursive or something
+  (inline)
+  (declare many-till (Accumulator :v :f => Parser :s :c :r :a * Parser :s :c :r :b -> Parser :s :c :r (:f :a)))
+  (define (many-till p end)
+    "Repeat `p` zero or more times until `end` succeedes, returning the results. If `p`
+fails at all, `many-till` fails and backtracks."
+    (Parser%
+     (fn (s c on-un on-rec on-s)
+       (let acc = (initial-accumulator))
+       (let ((on-inner-rec-end
+               (fn (s c _)
+                 (run-parser% p s c on-un on-rec on-inner-s-p)))
+             (on-inner-s-end
+               (fn (s c _)
+                 (on-s s c (finalize acc))))
+             (on-inner-s-p
+               (fn (s c a)
+                 (accumulate! acc a)
+                 (run-parser% end s c on-un on-inner-rec-end on-inner-s-end))))
+         (run-parser% end s c on-un on-inner-rec-end on-inner-s-end)))))
+
   (inline)
   (declare skip-many (Parser :s :c :r :t -> Parser :s :c :r Unit))
   (define (skip-many p)
@@ -381,13 +404,15 @@ returned by `p`."
      (pure (finalize (initial-accumulator)))))
 
   (inline)
-  (declare sep-by1 (Accumulator :a :f => Parser :s :c :r :t * Parser :s :c :r :x -> Parser :s :c :r (:f :t)))
+  (declare sep-by1 (Accumulator :v :f => Parser :s :c :r :a * Parser :s :c :r :x -> Parser :s :c :r (:f :a)))
   (define (sep-by1 p sep)
     "Parses zero or more occurences of `p`, separated by `sep`. Returns the values
 returned by `p`. Must succeed at least once."
     (do
      (t <- (label "Expected at least 1 success." p))
-     (let acc = (initial-accumulator-with t))
+     (let acc = (initial-accumulator))
+     ;; TODO: Don't do this at home
+     (let _ = (accumulate! acc t))
      (map finalize
           (parse-into acc
                       (do
@@ -417,4 +442,3 @@ returned by `p`. Must succeed at least once."
     (let buf = (new-buffered-source ƒ.(into (fl:read-char fs))))
     (parse-source buf parser))
   )
-
