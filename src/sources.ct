@@ -317,7 +317,7 @@ reclamation of memory for unbounded sources."
     (inline)
     (define (step s i)
       (let next = (1+ i))
-      (if (fill-until% s next)
+      (if (fill-until% s i)
           (Some (Tuple (at-bs%# s i) next))
           None))
     (inline)

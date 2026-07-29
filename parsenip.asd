@@ -22,6 +22,7 @@
                 :serial t
                 :components
                 (
+                 (:file "sources")
                  (:file "core")
                  (:file "package")
                  )))

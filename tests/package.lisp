@@ -12,6 +12,7 @@
 (cl:defun run-tests ()
   (fiasco:run-package-tests
    :packages '(
+               #:parsenip/tests/sources-fiasco
                #:parsenip/tests/core-fiasco
                )
    :interactive cl:t))
