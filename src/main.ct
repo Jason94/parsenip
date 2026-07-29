@@ -81,9 +81,9 @@
 
   (define-type-alias (ParseResult :c :r) (Result (Tuple3 :c Context ParseError) :r))
   
-  (define-type-alias (UnrecFailure :s :c :r) (:s * :c * Context * ParseError -> ParseResult :c :r))
-  (define-type-alias (RecFailure :s :c :r) (:s * :c * ParseError -> ParseResult :c :r))
-  (define-type-alias (Success :s :c :r :a) (:s * :c * :a -> ParseResult :c :r))
+  (define-type-alias (UnrecFailure :c :r) (:c * Context * ParseError -> ParseResult :c :r))
+  (define-type-alias (RecFailure :c :r) (:c * ParseError -> ParseResult :c :r))
+  (define-type-alias (Success :c :r :a) (:c * :a -> ParseResult :c :r))
   
   (repr :transparent)
   (define-type (Parser :s :c :r :a)
@@ -92,14 +92,14 @@ transformed to an `:r`."
     (Parser%
      ( :s ;; source
      * :c ;; active cursor
-     * (UnrecFailure :s :c :r) ;; On unrecoverable failure continuation
-     * (RecFailure :s :c :r)   ;; On recoverable failure continuation
-     * (Success :s :c :r :a)   ;; On success continuation
+     * (UnrecFailure :c :r) ;; On unrecoverable failure continuation
+     * (RecFailure :c :r)   ;; On recoverable failure continuation
+     * (Success :c :r :a)   ;; On success continuation
      -> ParseResult :c :r)))
      
   (inline)
   (declare run-parser% (Parser :s :c :r :a *
-                        :s * :c * (UnrecFailure :s :c :r) * (RecFailure :s :c :r) * (Success :s :c :r :a)
+                        :s * :c * (UnrecFailure :c :r) * (RecFailure :c :r) * (Success :c :r :a)
                         -> ParseResult :c :r))
   (define (run-parser% (Parser% f-parser) source cursor on-unrecoverable on-recoverable on-success)
     (f-parser source cursor on-unrecoverable on-recoverable on-success))
@@ -115,15 +115,15 @@ transformed to an `:r`."
     (define (map f parser)
       (Parser%
        (fn (s c on-un on-rec on-s)
-         (let on-s_ = ƒsca.(on-s s c (f a)))
+         (let on-s_ = ƒca.(on-s c (f a)))
          (run-parser% parser s c on-un on-rec on-s_)))))
 
   (inline)
   (declare pure% (:a -> Parser :s :c :r :a))
   (define (pure% x)
     (Parser%
-     (fn (s c _on-un _on-rec on-s)
-       (on-s s c x))))
+     (fn (_ c _on-un _on-rec on-s)
+       (on-s c x))))
 
   (inline)
   (declare lifta2% ((:a * :b -> :z) * Parser :s :c :r :a * Parser :s :c :r :b -> Parser :s :c :r :z))
@@ -131,8 +131,8 @@ transformed to an `:r`."
     (Parser%
      (fn (s c on-un on-rec on-s)
        (run-parser% pa s c on-un on-rec
-                    ƒsca.(run-parser% pb s c on-un on-rec
-                                      ƒscb.(on-s s c (fa-b->c a b)))))))
+                    ƒca.(run-parser% pb s c on-un on-rec
+                                      ƒcb.(on-s c (fa-b->c a b)))))))
 
   (define-instance (Applicative (Parser :s :c :r))
     (inline)
@@ -148,8 +148,8 @@ transformed to an `:r`."
     (Parser%
      (fn (s c on-un on-rec on-s)
        (run-parser% pa s c on-un on-rec
-                    ƒsca.(run-parser% (fa->pb a)
-                                      s c on-un on-rec on-s)))))
+                    ƒca.(run-parser% (fa->pb a)
+                                     s c on-un on-rec on-s)))))
 
   (define-instance (Monad (Parser :s :c :r))
     (inline)
@@ -160,14 +160,13 @@ transformed to an `:r`."
     (define empty
       (Parser%
        (fn (s c _ on-rec _)
-         (on-rec s c ""))))
+         (on-rec c ""))))
     (inline)
     (define (alt p1 p2)
       (Parser% 
        (fn (s c on-un on-rec on-s)
          (run-parser% p1 s c on-un
-                      (fn (_s _c _err)
-                        (run-parser% p2 s c on-un on-rec on-s))
+                      ƒ__.(run-parser% p2 s c on-un on-rec on-s)
                       on-s)))))
   )
 
@@ -192,7 +191,7 @@ transformed to an `:r`."
 (defmacro step-safe (s c on-rec (t-sym c-sym) cl:&body body)
   `(match (step ,s ,c)
      ((None)
-      (,on-rec ,s ,c eof-err))
+      (,on-rec ,c eof-err))
      ((Some (Tuple ,t-sym ,c-sym))
       ,@body)))
 
@@ -205,7 +204,7 @@ a partial parse then resuming later."
     (Parser%
      (fn (s c on-un on-rec on-s)
        (run-parser% p s c on-un on-rec
-                    ƒsca.(on-s s c (Tuple c a))))))
+                    ƒca.(on-s c (Tuple c a))))))
   
   (inline)
   (declare label (String * Parser :s :c :r :a -> Parser :s :c :r :a))
@@ -215,8 +214,8 @@ errors, and replaces any existing error message for recoverable errors."
     (Parser%
      (fn (s c on-un on-rec on-s)
        (run-parser% parser s c
-                    ƒscxe.(on-un s c (Cons msg x) e)
-                    ƒsc_.(on-rec s c msg)
+                    ƒcxe.(on-un c (Cons msg x) e)
+                    ƒc_.(on-rec c msg)
                     on-s))))
 
   (inline)
@@ -224,16 +223,16 @@ errors, and replaces any existing error message for recoverable errors."
   (define (parse-err msg)
     "Raise an unrecoverable error with `msg`."
     (Parser%
-     (fn (s c on-un _ _)
-       (on-un s c Nil msg))))
+     (fn (_ c on-un _ _)
+       (on-un c Nil msg))))
 
   (inline)
   (declare parse-fail (String -> Parser :s :c :r :a))
   (define (parse-fail msg)
     "Raise a recoverable failure with `msg`."
     (Parser%
-     (fn (s c _on-un on-rec _on-s)
-       (on-rec s c msg))))
+     (fn (_ c _on-un on-rec _on-s)
+       (on-rec c msg))))
 
   (inline)
   (declare commit (Source :s :c :t => Parser :s :c :r :a -> Parser :s :c :r :a))
@@ -245,7 +244,7 @@ Also reclaims any available memory in the parser's source up to the current curs
     (Parser%
      (fn (s c on-un _ on-s)
        (reclaim! s c)
-       (run-parser% p s c on-un ƒsce.(on-un s c Nil e) on-s))))
+       (run-parser% p s c on-un ƒce.(on-un c Nil e) on-s))))
   
   (inline)
   (declare eof (Source :s :c :t => Void -> Parser :s :c :r Unit))
@@ -255,10 +254,10 @@ Also reclaims any available memory in the parser's source up to the current curs
      (fn (s c _ on-rec on-s)
        (match (curse s c)
          ((None)
-          (on-s s c Unit))
+          (on-s c Unit))
          ((Some t)
-          (on-rec s c (lisp (-> String) (t)
-                        (cl:format cl:nil "Expected EOF. Got: ~a" t))))))))
+          (on-rec c (lisp (-> String) (t)
+                      (cl:format cl:nil "Expected EOF. Got: ~a" t))))))))
 
   (inline)
   (declare flatten-opt (Parser :s :c :r (Optional :t) -> Parser :s :c :r :t))
@@ -267,12 +266,12 @@ Also reclaims any available memory in the parser's source up to the current curs
     (Parser%
      (fn (s c on-un on-rec on-s)
        (run-parser% p s c on-un on-rec
-                    (fn (s2 c2 a)
+                    (fn (c2 a)
                       (match a
                         ((Some t)
-                         (on-s s2 c2 t))
+                         (on-s c2 t))
                         ((None)
-                         (on-rec s c "Unexpected None result."))))))))
+                         (on-rec c "Unexpected None result."))))))))
 
   (inline)
   (declare look-ahead (Parser :s :c :r :t -> Parser :s :c :r :t))
@@ -281,7 +280,7 @@ Also reclaims any available memory in the parser's source up to the current curs
     (Parser%
      ;; NOTE: Because all parsers backtrack on failure, only needs to handle on-s
      (fn (s c on-un on-rec on-s)
-       (run-parser% p s c on-un on-rec ƒ__a.(on-s s c a)))))
+       (run-parser% p s c on-un on-rec ƒ_a.(on-s c a)))))
 
   (inline)
   (declare peek (Source :s :c :t => Void -> Parser :s :c :r :t))
@@ -291,9 +290,9 @@ Also reclaims any available memory in the parser's source up to the current curs
      (fn (s c _ on-rec on-s)
        (match (curse s c)
          ((None)
-          (on-rec s c "EOF reached."))
+          (on-rec c "EOF reached."))
          ((Some t)
-          (on-s s c t))))))
+          (on-s c t))))))
     
   (inline)
   (declare next (Source :s :c :t => Void -> Parser :s :c :r :t))
@@ -302,7 +301,7 @@ Also reclaims any available memory in the parser's source up to the current curs
     (Parser%
      (fn (s c _ on-rec on-s)
        (step-safe s c on-rec (t c)
-         (on-s s c t)))))
+         (on-s c t)))))
 
   (inline)
   (declare next-if (Source :s :c :t => (:t -> Boolean) -> Parser :s :c :r :t))
@@ -313,8 +312,8 @@ if it does not."
      (fn (s c _on-un on-rec on-s)
        (step-safe s c on-rec (t c2)
          (if (pred t)
-             (on-s s c2 t)
-             (on-rec s c "Token failed to satisfy predicate."))))))
+             (on-s c2 t)
+             (on-rec c "Token failed to satisfy predicate."))))))
 
   (inline)
   (declare next-token ((Source :s :c :t) (Eq :t) => :t -> Parser :s :c :r :t))
@@ -334,15 +333,15 @@ does not."
                (next-t? (it:next! it)))
          (match next-t?
            ((None)
-            (on-s s c tokens))
+            (on-s c tokens))
            ((Some next-t)
             (match (step s c)
               ((None)
-               (on-rec s c0 eof-err))
+               (on-rec c0 eof-err))
               ((Some (Tuple t c))
                (if (== t next-t)
                    (% c (it:next! it))
-                   (on-rec s c0 "Unexpected token in literal."))))))))))
+                   (on-rec c0 "Unexpected token in literal."))))))))))
 
   (inline)
   (declare parse-into (Accumulator :v :f => :v :a * Parser :s :c :r :a -> Parser :s :c :r (:v :a)))
@@ -352,10 +351,10 @@ does not."
      (fn (s c on-un _on-rec on-s)
        (let last-successful-c = (c:new c))
        (let ((on-inner-rec
-               (fn (s _ _)
-                 (on-s s (c:read last-successful-c) acc)))
+               (fn (_ _)
+                 (on-s (c:read last-successful-c) acc)))
              (on-inner-s
-               (fn (s c t)
+               (fn (c t)
                  (accumulate! acc t)
                  (c:write! last-successful-c c)
                  (run-parser% p s c on-un on-inner-rec on-inner-s))))
@@ -369,14 +368,14 @@ does not."
      (fn (s c0 on-un on-rec on-s)
        (let acc = (initial-accumulator))
        (if (zero? n)
-           (on-s s c0 (finalize acc))
+           (on-s c0 (finalize acc))
            (let ((i (c:new n))
                  (on-inner-s
-                   (fn (s c a)
+                   (fn (c a)
                      (accumulate! acc a)
                      (if (zero? (c:decrement! i))
-                         (on-s s c (finalize acc))
-                         (run-parser% p s c on-un ƒs_e.(on-rec s c0 e) on-inner-s)))))
+                         (on-s c (finalize acc))
+                         (run-parser% p s c on-un ƒ_e.(on-rec c0 e) on-inner-s)))))
              (run-parser% p s c0 on-un on-rec on-inner-s))))))
 
   (inline)
@@ -410,13 +409,13 @@ fails at all, `many-till` fails and backtracks."
      (fn (s c on-un on-rec on-s)
        (let acc = (initial-accumulator))
        (let ((on-inner-rec-end
-               (fn (s c _)
+               (fn (c _)
                  (run-parser% p s c on-un on-rec on-inner-s-p)))
              (on-inner-s-end
-               (fn (s c _)
-                 (on-s s c (finalize acc))))
+               (fn (c _)
+                 (on-s c (finalize acc))))
              (on-inner-s-p
-               (fn (s c a)
+               (fn (c a)
                  (accumulate! acc a)
                  (run-parser% end s c on-un on-inner-rec-end on-inner-s-end))))
          (run-parser% end s c on-un on-inner-rec-end on-inner-s-end)))))
@@ -427,9 +426,9 @@ fails at all, `many-till` fails and backtracks."
     "Skip successes of `p` until it fails."
     (Parser%
      (fn (s c on-un _on-rec on-s)
-       (let ((on-inner-rec ƒsc_.(on-s s c Unit))
+       (let ((on-inner-rec ƒc_.(on-s c Unit))
              (on-inner-s
-               (fn (s c _)
+               (fn (c _)
                  (run-parser% p s c on-un on-inner-rec on-inner-s))))
          (run-parser% p s c on-un on-inner-rec on-inner-s)))))
 
@@ -470,9 +469,9 @@ returned by `p`. Must succeed at least once."
     (run-parser% parser
                  source
                  (initial-cursor source)
-                 ƒ_cxe.(Err (Tuple3 c x e))
-                 ƒ_ce.(Err (Tuple3 c Nil e))
-                 ƒ__r.(Ok r)))
+                 ƒcxe.(Err (Tuple3 c x e))
+                 ƒce.(Err (Tuple3 c Nil e))
+                 ƒ_r.(Ok r)))
 
   (inline)
   (declare parse-file-chars! (fl:FileStream Char * Parser (BufferedSource Char) UFix :r :r -> ParseResult UFix :r))
