@@ -42,6 +42,7 @@
    #:next-if
    #:next-token
    #:parse-into
+   #:count
    #:many
    #:many_
    #:many1
@@ -321,8 +322,6 @@ if it does not."
 does not."
     (next-if ƒx.(== x t)))
 
-  ;; TODO: Convert this to loop or... make tail recursive jesus christ
-  ;; Actually it seems like this this pattern is getting TCOd but I should run a test
   (inline)
   (declare parse-into (Accumulator :v :f => :v :a * Parser :s :c :r :a -> Parser :s :c :r (:v :a)))
   (define (parse-into acc p)
@@ -339,6 +338,24 @@ does not."
                  (c:write! last-successful-c c)
                  (run-parser% p s c on-un on-inner-rec on-inner-s))))
          (run-parser% p s c on-un on-inner-rec on-inner-s)))))
+
+  (inline)
+  (declare count (Accumulator :v :f => UFix * Parser :s :c :r :a -> Parser :s :c :r (:f :a)))
+  (define (count n p)
+    "Run `p` `n` times, accumulating every result. Fails if any application of `p` fails."
+    (Parser%
+     (fn (s c0 on-un on-rec on-s)
+       (let acc = (initial-accumulator))
+       (if (zero? n)
+           (on-s s c0 (finalize acc))
+           (let ((i (c:new n))
+                 (on-inner-s
+                   (fn (s c a)
+                     (accumulate! acc a)
+                     (if (zero? (c:decrement! i))
+                         (on-s s c (finalize acc))
+                         (run-parser% p s c on-un ƒs_e.(on-rec s c0 e) on-inner-s)))))
+             (run-parser% p s c0 on-un on-rec on-inner-s))))))
 
   (inline)
   (declare many (Accumulator :v :f => Parser :s :c :r :a -> Parser :s :c :r (:f :a)))

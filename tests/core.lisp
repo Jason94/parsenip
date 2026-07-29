@@ -118,3 +118,12 @@
           (partial-suc-cursor result)))
   (is (== (Some [#\a #\a])
           (partial-suc-value result))))
+
+(define-test test-count-fail-backtracks ()
+  (let result = (parse-source "0aacb"
+                              (do
+                               (next)
+                               (count 3 (next-token #\a)))))
+  (let _ = (the (ParseResult UFix (Vector Char)) result))
+  (is (== (Some 1)
+          (err-cursor result))))
