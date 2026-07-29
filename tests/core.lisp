@@ -127,3 +127,23 @@
   (let _ = (the (ParseResult UFix (Vector Char)) result))
   (is (== (Some 1)
           (err-cursor result))))
+
+(define-test test-next-literal-success ()
+  (let result = (parse-source "foobar"
+                              (partial (next-literal "foo"))))
+  (is (== (Some 3)
+          (partial-suc-cursor result)))
+  (is (== (Some "foo")
+          (partial-suc-value result))))
+
+(define-test test-next-literal-backtracks-on-mismatch ()
+  (let result = (parse-source "fozbar"
+                              (partial (next-literal "foo"))))
+  (is (== (Some 0)
+          (err-cursor result))))
+
+(define-test test-next-literal-backtracks-on-fail ()
+  (let result = (parse-source "fo"
+                              (partial (next-literal "foo"))))
+  (is (== (Some 0)
+          (err-cursor result))))

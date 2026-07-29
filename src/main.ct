@@ -3,7 +3,6 @@
    #:coalton
    #:coalton-prelude
    #:parsenip/sources
-   ;; #:coalton/math/integral)
    )
   (:import-from #:serapeum
    #:parse-float)
@@ -20,6 +19,7 @@
    (:c #:coalton/cell)
    (:s #:coalton/string)
    (:b #:coalton/bits)
+   (:it #:coalton/iterator)
    )
   (:export
    ;; Parser type
@@ -41,6 +41,7 @@
    #:next
    #:next-if
    #:next-token
+   #:next-literal
    #:parse-into
    #:count
    #:many
@@ -321,6 +322,27 @@ if it does not."
     "Parse the current token and advance the cursor by 1 if it matches `t`, failing if it
 does not."
     (next-if ƒx.(== x t)))
+
+  (inline)
+  (declare next-literal ((it:IntoIterator :v :t) (Source :s :c :t) (Eq :t) => :v -> Parser :s :c :r :v))
+  (define (next-literal tokens)
+    "Parse the next tokens, succeeding if they match `tokens` exactly. Fails otherwise."
+    (Parser%
+     (fn (s c0 _on-un on-rec on-s)
+       (let it = (it:into-iter tokens))
+       (rec % ((c c0)
+               (next-t? (it:next! it)))
+         (match next-t?
+           ((None)
+            (on-s s c tokens))
+           ((Some next-t)
+            (match (step s c)
+              ((None)
+               (on-rec s c0 eof-err))
+              ((Some (Tuple t c))
+               (if (== t next-t)
+                   (% c (it:next! it))
+                   (on-rec s c0 "Unexpected token in literal."))))))))))
 
   (inline)
   (declare parse-into (Accumulator :v :f => :v :a * Parser :s :c :r :a -> Parser :s :c :r (:v :a)))
