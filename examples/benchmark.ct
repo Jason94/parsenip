@@ -1,0 +1,79 @@
+(cl:defpackage #:parsenip/examples/benchmark
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:coalton/math/integral
+   #:parsenip/sources
+   #:parsenip
+   #:parsenip/text))
+
+(cl:in-package #:parsenip/examples/benchmark)
+
+(named-readtables:in-readtable coalton:coalton)
+
+;; See: https://gitlab.com/FinnBender/haskell-parsing-benchmarks
+
+;; SUM   = SUM '+' PROD
+;;       | SUM '-' PROD
+;;       | PROD
+
+;; PROD  = PROD '*' ATOM
+;;       | PROD '/' ATOM
+;;       | ATOM
+
+;; ATOM  = integer
+;;       | '(' SUM ')'
+
+(coalton-toplevel
+  (derive Eq)
+  (define-type Expr
+    (Bin Op Expr Expr)
+    (Atom UFix))
+
+  (repr :enum)
+  (derive eq)
+  (define-type Op
+    Add Sub Mul Divd))
+
+(coalton-toplevel
+  (inline)
+  (define (lexeme p)
+    (take-left p (skip-ws)))
+  
+  (inline)
+  (define (sum-op)
+    (lexeme
+     (alt (literal "+" ƒab.(Bin Add a b))
+          (literal "-" ƒab.(Bin Sub a b)))))
+
+  (inline)
+  (define (prod-op)
+    (lexeme
+     (alt (literal "*" ƒab.(Bin Mul a b))
+          (literal "/" ƒab.(Bin Divd a b)))))
+  
+  (inline)
+  (define (sum_)
+    (chainl1 (prod) (sum-op)))
+    
+  (inline)
+  (define (prod)
+    (chainl1 (atm) (prod-op)))
+  
+  (inline)
+  (define (atm)
+    (alt (lexeme (map Atom (next-ufix)))
+         (do
+          (lexeme (next-token #\())
+          (ex <- (sum_))
+          (lexeme (next-token #\)))
+          (pure ex)))) 
+
+  (declare expr (Source :s :c Char => Void -> Parser :s :c :r Expr))
+  (define (expr)
+    (take-left (sum_) (eof)))
+  )
+  
+
+(coalton
+ (parse-source "1 + 2 * (4 + 1)" (expr)))
