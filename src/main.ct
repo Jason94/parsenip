@@ -36,12 +36,13 @@
    #:commit
    #:eof
    #:flatten-opt
+   #:fails
    #:look-ahead
    #:peek
    #:next
    #:next-if
    #:next-token
-   #:next-literal
+   #:literal
    #:parse-into
    #:count
    #:many
@@ -51,6 +52,8 @@
    #:skip-many
    #:sep-by
    #:sep-by1
+   #:chainl
+   #:chainl1
 
    ;; Top-Level Runners
    #:parse-source
@@ -260,7 +263,7 @@ Also reclaims any available memory in the parser's source up to the current curs
                       (cl:format cl:nil "Expected EOF. Got: ~a" t))))))))
 
   (inline)
-  (declare flatten-opt (Parser :s :c :r (Optional :t) -> Parser :s :c :r :t))
+  (declare flatten-opt (Parser :s :c :r (Optional :a) -> Parser :s :c :r :a))
   (define (flatten-opt p)
     "Fail a `None` parse result."
     (Parser%
@@ -272,6 +275,16 @@ Also reclaims any available memory in the parser's source up to the current curs
                          (on-s c2 t))
                         ((None)
                          (on-rec c "Unexpected None result."))))))))
+
+  (inline)
+  (declare fails (Parser :s :c :r :a -> Parser :s :c :r Unit))
+  (define (fails p)
+    "Succeedes if `p` fails, and fails if `p` succeedes."
+    (Parser%
+     (fn (s c on-un on-rec on-s)
+       (run-parser% p s c on-un
+                    ƒc_.(on-s c Unit)
+                    ƒ__.(on-rec c "Parser succeeded but was expected to fail.")))))
 
   (inline)
   (declare look-ahead (Parser :s :c :r :t -> Parser :s :c :r :t))
@@ -323,9 +336,10 @@ does not."
     (next-if ƒx.(== x t)))
 
   (inline)
-  (declare next-literal ((it:IntoIterator :v :t) (Source :s :c :t) (Eq :t) => :v -> Parser :s :c :r :v))
-  (define (next-literal tokens)
-    "Parse the next tokens, succeeding if they match `tokens` exactly. Fails otherwise."
+  (declare literal ((it:IntoIterator :v :t) (Source :s :c :t) (Eq :t) => :v * :a -> Parser :s :c :r :a))
+  (define (literal tokens a)
+    "Parse the next tokens, succeeding if they match `tokens` exactly. Fails otherwise.
+Returns `a` if successful."
     (Parser%
      (fn (s c0 _on-un on-rec on-s)
        (let it = (it:into-iter tokens))
@@ -333,7 +347,7 @@ does not."
                (next-t? (it:next! it)))
          (match next-t?
            ((None)
-            (on-s c tokens))
+            (on-s c a))
            ((Some next-t)
             (match (step s c)
               ((None)
@@ -456,6 +470,48 @@ returned by `p`. Must succeed at least once."
                       (do
                        sep
                        p)))))
+
+  (inline)
+  (declare chainl (Parser :s :c :r :a * Parser :s :c :r (:a * :a -> :a) * :a -> Parser :s :c :r :a))
+  (define (chainl p op a)
+    "Parse zero or more occurences of `p`, separated by `op`. Returns a value obtained
+by a left associative application of all functions returned by `op` to the values
+returned by `p`.
+
+The parser fails if `p` fails, and terminates when `op` fails."
+    (Parser%
+     (fn (s c on-un on-rec on-s)
+       (let ((on-term-suc
+               (fn (c term1)
+                 (let ((on-op-s
+                         (fn (c op)
+                           (run-parser% p s c on-un on-rec
+                                        ƒct.(on-term-suc c (op term1 t))))))
+                   (run-parser% op s c on-un
+                                ƒc_.(on-s c term1)
+                                ƒco.(on-op-s c o))))))
+         (on-term-suc c a)))))
+
+  (inline)
+  (declare chainl1 (Parser :s :c :r :a * Parser :s :c :r (:a * :a -> :a) -> Parser :s :c :r :a))
+  (define (chainl1 p op)
+    "Parse one or more occurrences of `p`, separated by `op`. Returns a value obtained
+by a left associative application of all functions returned by `op` to the values
+returned by `p`.
+
+The parser fails if `p` fails, and terminates when `op` fails."
+    (Parser%
+     (fn (s c on-un on-rec on-s)
+       (let ((on-term-suc
+               (fn (c term1)
+                 (let ((on-op-s
+                         (fn (c op)
+                           (run-parser% p s c on-un on-rec
+                                        ƒct.(on-term-suc c (op term1 t))))))
+                   (run-parser% op s c on-un
+                                ƒc_.(on-s c term1)
+                                ƒco.(on-op-s c o))))))
+         (run-parser% p s c on-un on-rec on-term-suc)))))
   )
 
 ;;;

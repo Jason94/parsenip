@@ -20,6 +20,7 @@
    
    #:skip-ws
    #:next-int
+   #:next-ufix
    #:next-decimal
    ))
 
@@ -87,6 +88,15 @@
     (flatten-opt
      (map ƒc.(s:parse-int (chars->str c))
           (many1 (next-if int-char?)))))
+
+  (inline)
+  (declare next-ufix (Source :s :c Char => Void -> Parser :s :c :r UFix))
+  (define (next-ufix)
+    "Parse the next unsigned integer. Doesn't accept any signs. Fails if a valid integer
+is not parsed."
+    (flatten-opt
+     (map ƒc.(>>= (s:parse-int (chars->str c)) tryinto)
+          (many1 (next-if ch:ascii-digit?)))))
 
   (inline)
   (declare next-decimal (Source :s :c Char => Void -> Parser :s :c :r F64))
