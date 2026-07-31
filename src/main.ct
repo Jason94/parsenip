@@ -34,6 +34,7 @@
    #:parse-err
    #:parse-fail
    #:commit
+   #:reclaim
    #:eof
    #:flatten-opt
    #:fails
@@ -240,14 +241,20 @@ errors, and replaces any existing error message for recoverable errors."
   (inline)
   (declare commit (Source :s :c :t => Parser :s :c :r :a -> Parser :s :c :r :a))
   (define (commit p)
-    "Commit to this branch of parsing, `p`, and disallow any further backtracking. Any
-recoverable errors that cross this commit are raised as unrecoverable errors.
-
-Also reclaims any available memory in the parser's source up to the current cursor."
+    "Commit to this branch of parsing. If `p` fails, raises an unrecoverable error."
     (Parser%
      (fn (s c on-un _ on-s)
-       (reclaim! s c)
        (run-parser% p s c on-un ƒce.(on-un c Nil e) on-s))))
+
+  (inline)
+  (declare reclaim (Source :s :c :t => Void -> Parser :s :c :r Unit))
+  (define (reclaim)
+    "Discard source data preceding the current cursor. The caller must ensure that no
+subsequent success or failure path can resume from an earlier cursor."
+    (Parser%
+     (fn (s c _ _ on-s)
+       (reclaim! s c)
+       (on-s c Unit))))
   
   (inline)
   (declare eof (Source :s :c :t => Void -> Parser :s :c :r Unit))

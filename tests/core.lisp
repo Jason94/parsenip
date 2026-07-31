@@ -37,6 +37,19 @@
       ((Ok (Tuple _ v))
        (Some v)))))
 
+(define-test test-commit-locks-alt-branch-and-cursor ()
+  (let result = (parse-source "foo"
+                              (partial (alt (do
+                                             (next-token #\f)
+                                             (commit
+                                              (next-token #\a)))
+                                            (do
+                                             (literal "foo" Unit)
+                                             (eof)
+                                             (pure #\z))))))
+  (is (== (Some 1)
+          (err-cursor result))))
+
 (define-test test-eof-matches-and-doesnt-advance ()
   (let result = (parse-source ""
                               (partial (eof))))
