@@ -128,22 +128,22 @@
   (is (== (Some 1)
           (err-cursor result))))
 
-(define-test test-next-literal-success ()
+(define-test test-literal-success ()
   (let result = (parse-source "foobar"
-                              (partial (next-literal "foo"))))
+                              (partial (literal "foo" 1))))
   (is (== (Some 3)
           (partial-suc-cursor result)))
-  (is (== (Some "foo")
+  (is (== (Some 1)
           (partial-suc-value result))))
 
-(define-test test-next-literal-backtracks-on-mismatch ()
+(define-test test-literal-backtracks-on-mismatch ()
   (let result = (parse-source "fozbar"
-                              (partial (next-literal "foo"))))
+                              (partial (literal "foo" 1))))
   (is (== (Some 0)
           (err-cursor result))))
 
-(define-test test-next-literal-backtracks-on-fail ()
+(define-test test-literal-backtracks-on-fail ()
   (let result = (parse-source "fo"
-                              (partial (next-literal "foo"))))
+                              (partial (literal "foo" 1))))
   (is (== (Some 0)
           (err-cursor result))))

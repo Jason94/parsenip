@@ -5,9 +5,16 @@
    #:coalton/math/integral
    #:parsenip/sources
    #:parsenip
-   #:parsenip/text))
+   #:parsenip/text)
+  (:local-nicknames
+   (:fl #:coalton/file)
+   )
+  (:export
+   #:run-bench))
 
 (cl:in-package #:parsenip/examples/benchmark)
+
+(cl:declaim (cl:optimize (cl:speed 3) (cl:debug 0) (cl:safety 1)))
 
 (named-readtables:in-readtable coalton:coalton)
 
@@ -69,11 +76,51 @@
           (lexeme (next-token #\)))
           (pure ex)))) 
 
-  (declare expr (Source :s :c Char => Void -> Parser :s :c :r Expr))
-  (define (expr)
+  (inline)
+  (declare parse-expr (Source :s :c Char => Void -> Parser :s :c :r Expr))
+  (define (parse-expr)
     (take-left (sum_) (eof)))
-  )
-  
 
-(coalton
- (parse-source "1 + 2 * (4 + 1)" (expr)))
+  (monomorphize)
+  (declare parse-expr-file (String -> ParseResult UFix Expr))
+  (define (parse-expr-file filename)
+    (match 
+        (fl:with-open-file filename
+          (fn (fs)
+            (Ok (parse-file-chars! fs
+                                   (parse-expr)))))
+      ((Err _)
+       (error ""))
+      ((Ok x)
+       x)))
+  )
+
+(cl:defun run-bench (filename)
+  (cl:time (coalton (parse-expr-file
+                     (lisp (-> String) ()
+                       filename))))
+  (cl:values))
+
+(coalton-toplevel
+  (monomorphize)
+  (declare parse-expr-file_ (fl:FileStream Char -> ParseResult UFix Expr))
+  (define (parse-expr-file_ fs)
+    (parse-file-chars! fs (parse-expr))))
+
+(pprint-coalton-codegen
+  (monomorphize)
+  (declare parse-expr-file_ (fl:FileStream Char -> ParseResult UFix Expr))
+  (define (parse-expr-file_ fs)
+    (parse-file-chars! fs (parse-expr))))
+
+(cl:disassemble parse-expr-file_)
+
+;; (cl:defun run-bench_ (filename)
+  
+  
+;; (pprint-coalton-codegen
+;;   (declare parse-expr (Source :s :c Char => Void -> Parser :s :c :r Expr))
+;;   (define (parse-expr)
+;;     (take-left (sum_) (eof)))
+;;   )
+;; (cl:disassemble parse-expr)
