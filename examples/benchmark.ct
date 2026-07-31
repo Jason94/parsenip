@@ -7,6 +7,7 @@
    #:parsenip
    #:parsenip/text)
   (:local-nicknames
+   (:la #:coalton/lisparray)
    (:fl #:coalton/file)
    )
   (:export
@@ -84,11 +85,15 @@
   (monomorphize)
   (declare parse-expr-file (String -> ParseResult UFix Expr))
   (define (parse-expr-file filename)
+    (let f =
+      (fn (fs)
+        (parse-file-chars! fs (parse-expr))))
+    (lisp (-> :a) (f)
+      (cl:disassemble f))
     (match 
         (fl:with-open-file filename
           (fn (fs)
-            (Ok (parse-file-chars! fs
-                                   (parse-expr)))))
+            (Ok (f fs))))
       ((Err _)
        (error ""))
       ((Ok x)
@@ -107,11 +112,34 @@
                 filename))))
   (cl:values))
 
+;;;
+;;; Bulk-read version
+;;;
+
 (coalton-toplevel
   (monomorphize)
-  (declare parse-expr-file_ (fl:FileStream Char -> ParseResult UFix Expr))
-  (define (parse-expr-file_ fs)
-    (parse-file-chars! fs (parse-expr))))
+  (declare parse-expr-file-bulk (String -> ParseResult UFix Expr))
+  (define (parse-expr-file-bulk filename)
+    (let tokens =
+      (lisp (-> String) (filename)
+        (cl:with-open-file (fs filename :direction :input)
+          (cl:let ((buffer (cl:make-string (cl:file-length fs))))
+            (cl:read-sequence buffer fs)
+            buffer))))
+    (parse-source tokens (parse-expr))))
+  
+(cl:defun run-bench-bulk (filename)
+  (cl:disassemble parse-expr-file-bulk)
+  (cl:print "timing...")
+  (cl:time (coalton (parse-expr-file-bulk
+                     (lisp (-> String) ()
+                       filename))))
+  (cl:print "profiling...")
+  (flamegraph:save-flame-graph ("bench-bulk.stack")
+    (coalton (parse-expr-file-bulk
+              (lisp (-> String) ()
+                filename))))
+  (cl:values))
 
 ;; (pprint-coalton-codegen
 ;;   (monomorphize)

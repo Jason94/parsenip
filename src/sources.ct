@@ -212,7 +212,10 @@ fill enough values to reach `tail`."
     (step
      "Attempt to lookup the value at `cursor` and advance the cursor by 1. Returns `None`
 if EOF."
-     (:s * :c -> Optional (Tuple :t :c)))
+     ;; TODO: Revert back to (Optional (Tuple :t :c)) or remove tuple altogether, and
+     ;; use multiple returns.
+     ;; See https://github.com/coalton-lang/coalton/issues/2049
+     (:s * :c -> Tuple (Optional :t) (Optional :c)))
     (reclaim!
      "Signal that the parser will never backtrack before `cursor`. Is allowed to mutate
 the source, such that any curses to `cursor` or later will not be affected. Allows
@@ -244,9 +247,9 @@ reclamation of memory for unbounded sources."
     (define (step _ lst)
       (match lst
         ((Nil)
-         None)
+         (Tuple None None))
         ((Cons v next)
-         (Some (Tuple v next)))))
+         (Tuple (Some v) (Some next)))))
     (inline)
     (define (reclaim! _ _)
       (values))))
@@ -271,8 +274,8 @@ reclamation of memory for unbounded sources."
       (let next = (1+ i))
       ;; > instead of >= because EOF must be a valid cursor position.
       (if (> next (v:length vec))
-          None
-          (Some (Tuple (v:index-unsafe i vec) next))))
+          (Tuple None None)
+          (Tuple (Some (v:index-unsafe i vec)) (Some next))))
     (inline)
     (define (reclaim! _ _)
       (values))))
@@ -296,8 +299,8 @@ reclamation of memory for unbounded sources."
       (let next = (1+ i))
       ;; > instead of >= because EOF must be a valid cursor position.
       (if (> next (s:length s))
-          None
-          (Some (Tuple (s:ref-unchecked s i) next))))
+          (Tuple None None)
+          (Tuple (Some (s:ref-unchecked s i)) (Some next))))
     (inline)
     (define (reclaim! _ _)
       (values))))
@@ -320,8 +323,8 @@ reclamation of memory for unbounded sources."
     (define (step s i)
       (let next = (1+ i))
       (if (fill-until% s i)
-          (Some (Tuple (at-bs%# s i) next))
-          None))
+          (Tuple (Some (at-bs%# s i)) (Some next))
+          (Tuple None None)))
     (inline)
     (define (reclaim! s c)
       (reclaim-upto (.buffer s) c)

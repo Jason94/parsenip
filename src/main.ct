@@ -193,11 +193,19 @@ transformed to an `:r`."
 ;; NOTE: Following attoparsec, parsers should always backtrack on failure.
 
 (defmacro step-safe (s c on-rec (t-sym c-sym) cl:&body body)
-  `(match (step ,s ,c)
-     ((None)
-      (,on-rec ,c eof-err))
-     ((Some (Tuple ,t-sym ,c-sym))
-      ,@body)))
+  (cl:let ((t?-sym (cl:gensym))
+           (c?-sym (cl:gensym)))
+    `(progn
+       (let (Tuple ,t?-sym ,c?-sym) = (step ,s ,c))
+       (match ,t?-sym
+         ((None)
+          (,on-rec ,c eof-err))
+         ((Some ,t-sym)
+          (match ,c?-sym
+            ((None)
+             (,on-rec ,c eof-err))
+            ((Some ,c-sym)
+             ,@body)))))))
 
 (coalton-toplevel
   (inline)
@@ -356,13 +364,18 @@ Returns `a` if successful."
            ((None)
             (on-s c a))
            ((Some next-t)
-            (match (step s c)
+            (let (Tuple t? c?) = (step s c))
+            (match t?
               ((None)
                (on-rec c0 eof-err))
-              ((Some (Tuple t c))
-               (if (== t next-t)
-                   (% c (it:next! it))
-                   (on-rec c0 "Unexpected token in literal."))))))))))
+              ((Some t)
+               (match c?
+                 ((None)
+                  (on-rec c0 eof-err))
+                 ((Some c)
+                  (if (== t next-t)
+                      (% c (it:next! it))
+                      (on-rec c0 "Unexpected token in literal."))))))))))))
 
   (inline)
   (declare parse-into (Accumulator :v :f => :v :a * Parser :s :c :r :a -> Parser :s :c :r (:v :a)))

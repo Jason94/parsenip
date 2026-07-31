@@ -14,11 +14,13 @@
 (coalton-fiasco-init #:parsenip/tests/sources-fiasco)
 
 (coalton-toplevel
-  (declare step-token (Optional (Tuple :t :c) -> Optional :t))
-  (define step-token (fmap fst))
+  (define-type-alias (StepRet :t :c) (Tuple (Optional :t) (Optional :c)))
+  
+  (declare step-token (StepRet :t :c -> Optional :t))
+  (define step-token fst)
 
-  (declare step-cursor (Optional (Tuple :t :c) -> Optional :c))
-  (define step-cursor (fmap snd)))
+  (declare step-cursor (StepRet :t :c -> Optional :c))
+  (define step-cursor snd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;          Buffered Source          ;;;
@@ -32,7 +34,15 @@
   (is (== (Some 1) (step-cursor result))))
 
 (define-test test-buffered-source-step-at-eof ()
-  (let data = (it:into-iter ""))
+  (let data = (it:into-iter " "))
   (let bsource = (new-buffered-source ƒ.(it:next! data)))
-  (let result = (step bsource (initial-cursor bsource)))
-  (is (none? result)))
+  (let c = (step bsource (initial-cursor bsource)))
+  (is (== (Some 1)
+          (step-cursor c)))
+  (match c
+    ((Tuple _ (Some c))
+     (let result = (step bsource c))
+     (is (none? (step-token result)))
+     (values))
+    (_
+     (values))))
