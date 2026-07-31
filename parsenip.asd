@@ -40,3 +40,12 @@
   :perform (load-op (op c)
             (uiop:with-current-directory ((asdf:system-source-directory c))
               (uiop:symbol-call '#:parsenip/docs '#:write-docs))))
+
+(defsystem "parsenip/examples"
+  :author "Jason Walker"
+  :license "MIT"
+  :depends-on ("parsenip" "flamegraph")
+  :components ((:module "examples"
+                :serial t
+                :components ((:ct-file "benchmark"))))
+  )

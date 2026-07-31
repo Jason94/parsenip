@@ -96,9 +96,15 @@
   )
 
 (cl:defun run-bench (filename)
+  (cl:print "timing...")
   (cl:time (coalton (parse-expr-file
                      (lisp (-> String) ()
                        filename))))
+  (cl:print "profiling...")
+  (flamegraph:save-flame-graph ("bench.stack")
+    (coalton (parse-expr-file
+              (lisp (-> String) ()
+                filename))))
   (cl:values))
 
 (coalton-toplevel
@@ -107,13 +113,13 @@
   (define (parse-expr-file_ fs)
     (parse-file-chars! fs (parse-expr))))
 
-(pprint-coalton-codegen
-  (monomorphize)
-  (declare parse-expr-file_ (fl:FileStream Char -> ParseResult UFix Expr))
-  (define (parse-expr-file_ fs)
-    (parse-file-chars! fs (parse-expr))))
+;; (pprint-coalton-codegen
+;;   (monomorphize)
+;;   (declare parse-expr-file_ (fl:FileStream Char -> ParseResult UFix Expr))
+;;   (define (parse-expr-file_ fs)
+;;     (parse-file-chars! fs (parse-expr))))
 
-(cl:disassemble parse-expr-file_)
+;; (cl:disassemble parse-expr-file_)
 
 ;; (cl:defun run-bench_ (filename)
   
