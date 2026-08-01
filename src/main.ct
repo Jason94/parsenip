@@ -50,6 +50,7 @@
    #:many_
    #:many1
    #:many-till
+   #:skip-while
    #:skip-many
    #:sep-by
    #:sep-by1
@@ -456,6 +457,31 @@ fails at all, `many-till` fails and backtracks."
                  (accumulate! acc a)
                  (run-parser% end s c on-un on-inner-rec-end on-inner-s-end))))
          (run-parser% end s c on-un on-inner-rec-end on-inner-s-end)))))
+
+  ;; TODO: This allows monomorphizing the `step` calls but prevents fusing `pred`.
+  ;; Maybe explore using a plain `for` loop inside of `skip-while`.
+  (declare skip-while-loop (Source :s :c :t => :s * :c * (:t -> Boolean) -> :c))
+  (define (skip-while-loop s c pred)
+    (let (values t? c?) = (step s c))
+    (match t?
+      ((None)
+       c)
+      ((Some t)
+       (match c?
+         ((None)
+          c)
+         ((Some c2)
+          (if (pred t)
+              (skip-while-loop s c2 pred)
+              c))))))
+
+  (inline)
+  (declare skip-while (Source :s :c :t => (:t -> Boolean) -> Parser :s :c :r Unit))
+  (define (skip-while pred)
+    "Skip tokens while `pred` is true. Succeedes if reaches EOF."
+    (Parser%
+     (fn (s c _ _ on-s)
+       (on-s (skip-while-loop s c pred) Unit))))
 
   (inline)
   (declare skip-many (Parser :s :c :r :t -> Parser :s :c :r Unit))

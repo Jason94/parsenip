@@ -7,6 +7,7 @@
    #:parsenip
    #:parsenip/text)
   (:local-nicknames
+   (:ch #:coalton/char)
    (:la #:coalton/lisparray)
    (:fl #:coalton/file)
    )
@@ -88,8 +89,6 @@
     (let f =
       (fn (fs)
         (parse-file-chars! fs (parse-expr))))
-    (lisp (-> :a) (f)
-      (cl:disassemble f))
     (match 
         (fl:with-open-file filename
           (fn (fs)
@@ -129,7 +128,6 @@
     (parse-source tokens (parse-expr))))
   
 (cl:defun run-bench-bulk (filename)
-  (cl:disassemble parse-expr-file-bulk)
   (cl:print "timing...")
   (cl:time (coalton (parse-expr-file-bulk
                      (lisp (-> String) ()
@@ -141,38 +139,81 @@
                 filename))))
   (cl:values))
 
-;; (pprint-coalton-codegen
-;;   (monomorphize)
-;;   (declare parse-expr-file_ (fl:FileStream Char -> ParseResult UFix Expr))
-;;   (define (parse-expr-file_ fs)
-;;     (parse-file-chars! fs (parse-expr))))
+;; (cl:disassemble parse-expr-file-bulk)
+;;
 
-;; (cl:disassemble parse-expr-file_)
+(coalton-toplevel
+  (inline)
+  (monomorphize)
+  (declare pegged-atm (Void -> Parser String UFix :r Expr))
+  (define (pegged-atm)
+    (atm)))
+           
+(cl:disassemble #'parsenip/text::next-ufix-loop)
+(cl:disassemble (coalton (pegged-atm)))
+(cl:let ((step-function
+           (coalton
+             (the
+              (String * UFix
+                      -> (Optional Char) * (Optional UFix))
+              step))))
+  (cl:format cl:t "~&Target: ~S~%"
+             (sb-kernel:%fun-name
+              (sb-kernel:%fun-fun step-function)))
+  (cl:disassemble step-function))
 
-;; (cl:defun run-bench_ (filename)
+(coalton-toplevel
+  (inline)
+  (monomorphize)
+  (declare pegged-next-ufix (Void -> Parser String UFix :r UFIx))
+  (define (pegged-next-ufix)
+    (next-ufix))
   
-  
-;; (pprint-coalton-codegen
-;;   (declare parse-expr (Source :s :c Char => Void -> Parser :s :c :r Expr))
-;;   (define (parse-expr)
-;;     (take-left (sum_) (eof)))
-;;   )
-;; (cl:disassemble parse-expr)
+  (inline)
+  (monomorphize)
+  (declare pegged-next-ufix-lp (String * UFix * UFix -> UFix * UFix))
+  (define (pegged-next-ufix-lp s c x)
+    (let (values t? c?) = (step s c))
+    (match t?
+      ((None)
+       (values c x))
+      ((Some t)
+       (match (ch:digit->ufix t)
+         ((None)
+          (values c x))
+         ((Some d)
+          (match c?
+            ((None)
+             (values c x))
+            ((Some c)
+             (pegged-next-ufix-lp s c (+ (* 10 x) d))))))))))
 
-;; (coalton-toplevel
-;;   (inline)
-;;   (monomorphize)
-;;   (declare next-ufix-src (Void -> Parser String UFix :r UFix))
-;;   (define (next-ufix-src)
-;;     (next-ufix)))
-;; (pprint-coalton-codegen-types
-;;   (inline)
-;;   (monomorphize)
-;;   (declare next-ufix-src (Void -> Parser String UFix :r UFix))
-;;   (define (next-ufix-src)
-;;     (next-ufix)))
-;; (cl:disassemble next-ufix)
-;; ;; (cl:disassemble (next-ufix)) - Errors because it needs source dictionary
-;; (cl:disassemble parsenip/text::next-ufix-loop)
-;; (cl:disassemble (next-ufix-src))
-;; (cl:disassemble next-ufix-loop#1370)
+(cl:disassemble (coalton (pegged-next-ufix)))
+(cl:disassemble pegged-next-ufix-lp)
+;; (cl:disassemble NEXT-UFIX-LOOP#11902)
+
+(coalton-toplevel
+  (monomorphize)
+  (declare pegged-parse-expr (Void -> Parser String UFix :r Expr))
+  (define (pegged-parse-expr)
+    (parse-expr)))
+
+(cl:disassemble (coalton (pegged-parse-expr)))
+
+(coalton-toplevel
+  (monomorphize)
+  (declare pegged-sum (Void -> Parser String UFix :r Expr))
+  (define (pegged-sum)
+    (sum_)))
+
+(cl:disassemble (coalton (pegged-sum)))
+
+(coalton-toplevel
+  (monomorphize)
+  (declare pegged-prod
+    (Void -> Parser String UFix :r Expr))
+  (define (pegged-prod)
+    (prod)))
+
+(cl:disassemble (coalton (pegged-prod)))
+;; (cl:disassemble next-ufix-loop#14998)

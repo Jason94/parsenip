@@ -83,7 +83,7 @@
   (inline)
   (declare skip-ws (Source :s :c Char => Void -> Parser :s :c :r Unit))
   (define (skip-ws)
-    (skip-many (next-if ws-char?)))
+    (skip-while ws-char?))
   
   (inline)
   (declare next-int (Source :s :c Char => Void -> Parser :s :c :r Integer))
