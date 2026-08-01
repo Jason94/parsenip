@@ -1,0 +1,138 @@
+(cl:defpackage #:parsenip/examples/benchmark-bytes
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:coalton/math/integral
+   #:parsenip/sources
+   #:parsenip
+   #:parsenip/bytes)
+  (:local-nicknames
+   (:ch #:coalton/char)
+   (:la #:coalton/lisparray)
+   (:fl #:coalton/file)
+   )
+  (:export
+   #:run-bench))
+
+(cl:in-package #:parsenip/examples/benchmark-bytes)
+
+(cl:declaim (cl:optimize (cl:speed 3) (cl:debug 0) (cl:safety 0)))
+
+(named-readtables:in-readtable coalton:coalton)
+
+;; See: https://gitlab.com/FinnBender/haskell-parsing-benchmarks
+
+;; SUM   = SUM '+' PROD
+;;       | SUM '-' PROD
+;;       | PROD
+
+;; PROD  = PROD '*' ATOM
+;;       | PROD '/' ATOM
+;;       | ATOM
+
+;; ATOM  = integer
+;;       | '(' SUM ')'
+
+(coalton-toplevel
+  (derive Eq)
+  (define-type Expr
+    (Bin Op Expr Expr)
+    (Atom UFix))
+
+  (repr :enum)
+  (derive eq)
+  (define-type Op
+    Add Sub Mul Divd))
+
+(coalton-toplevel
+  (inline)
+  (define (lexeme p)
+    (take-left p (skip-ws)))
+  
+  (inline)
+  (define (sum-op)
+    (lexeme
+     (switch-string
+      (("+" ƒab.(Bin Add a b))
+       ("-" ƒab.(Bin Sub a b))))))
+
+  (inline)
+  (define (prod-op)
+    (lexeme
+     (switch-string
+      (("*" ƒab.(Bin Mul a b))
+       ("/" ƒab.(Bin Divd a b))))))
+  
+  (inline)
+  (define (sum_)
+    (chainl1 (prod) (sum-op)))
+    
+  (inline)
+  (define (prod)
+    (chainl1 (atm) (prod-op)))
+  
+  (inline)
+  (define (atm)
+    (alt (lexeme (map Atom (next-ufix)))
+         (do
+          (lexeme (next-token (char-code #\()))
+          (ex <- (sum_))
+          (lexeme (next-token (char-code #\))))
+          (pure ex)))) 
+
+  (inline)
+  (declare parse-expr (Source :s :c U8 => Void -> Parser :s :c :r Expr))
+  (define (parse-expr)
+    (take-left (sum_) (eof)))
+  )
+
+;;;
+;;; Bulk-read version
+;;;
+
+(coalton-toplevel
+  (monomorphize)
+  (declare parse-expr-file-bulk (String -> Expr))
+  (define (parse-expr-file-bulk filename)
+    (let tokens =
+      (lisp (-> la:LispArray U8) (filename)
+        (cl:with-open-file (fs filename :direction :input :element-type '(cl:unsigned-byte 8))
+          (cl:let ((buffer (cl:make-array (cl:file-length fs) :element-type '(cl:unsigned-byte 8))))
+            (cl:read-sequence buffer fs)
+            buffer))))
+    (match
+        (parse-source tokens (parse-expr))
+      ((Err _)
+       (error "Parsing failed"))
+      ((Ok expr)
+       expr))))
+  
+(cl:defun run-bench-bulk (filename)
+  (cl:print "timing...")
+  (cl:time (coalton (parse-expr-file-bulk
+                     (lisp (-> String) ()
+                       filename))))
+  (cl:print "profiling...")
+  (flamegraph:save-flame-graph ("bench-bulk.stack")
+    (coalton (parse-expr-file-bulk
+              (lisp (-> String) ()
+                filename))))
+  (cl:values))
+
+;;;
+;;; Monomorphization experiments
+;;;
+
+;; (coalton-toplevel
+;;   (monomorphize)
+;;   (declare pegged-prod (Void -> Parser (la:LispArray U8) UFix :r Expr))
+;;   (define (pegged-prod)
+;;     (prod)))
+
+;; (pprint-coalton-codegen-types
+;;   (monomorphize)
+;;   (declare pegged-prod (Void -> Parser (la:LispArray U8) UFix :r Expr))
+;;   (define (pegged-prod)
+;;     (prod)))
+
+;; (cl:disassemble (coalton (pegged-prod)))
