@@ -24,6 +24,7 @@
    #:next-ufix
    #:next-decimal
    #:literal-string
+   #:switch-string
    ))
 
 (cl:in-package #:parsenip/text)
@@ -139,3 +140,18 @@ Returns `a` if successful.
 
 Type: (Source :s :c Char) => String * :a -> Parser :s :c :r :a"
   `(literal ,(cl:coerce tokens 'cl:list) ,a))
+
+(defmacro switch-string (forms)
+  "Match against one or more string literal forms.
+
+Example:
+(switch
+    ((\"123\" (pure 123))
+     (\"124\" (pure 124))
+     (\"321\" (parse-321))))"
+  `(switch
+       ,(cl:mapcar (cl:lambda (form)
+                     (cl:let ((literal (cl:first form))
+                              (result (cl:second form)))
+                       `(,(cl:coerce literal 'cl:list) ,result)))
+         forms)))

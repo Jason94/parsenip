@@ -575,10 +575,6 @@ Type: (Source :s :c :t) => ( :t ... ) * :a -> Parser :s :c :r :a"
 ;;; `switch` macro
 ;;; 
 
-;; (switch
-;;   ((1 2 3) (pure 123))
-;;   ((3 4 5) (pure 345)))
-
 ;; Internally uses a plist tree, with results stored in nodes: (:result . result-form)
 
 (cl:defun descend-branches (tree tokens)
@@ -646,6 +642,13 @@ Type: (Source :s :c :t) => ( :t ... ) * :a -> Parser :s :c :r :a"
           (_ (,on-rec-sym ,c0-sym "Failed to switch on an expected literal."))))))
 
 (defmacro switch (forms)
+  "Match against one or more literal forms.
+
+Example:
+(switch
+    (((1 2 3) (pure 123))
+     ((1 2 4) (pure 124))
+     ((3 2 1) (parse-321))))"
   (with-gensyms (s-sym c0-sym on-rec0-sym on-rec-sym on-s-sym)
     `(Parser%
       (fn (,s-sym ,c0-sym _ ,on-rec0-sym ,on-s-sym)
@@ -653,10 +656,6 @@ Type: (Source :s :c :t) => ( :t ... ) * :a -> Parser :s :c :r :a"
         ,(compile-branch (build-tree forms)
                          s-sym c0-sym on-rec-sym on-s-sym)))))
 
-;; (switch
-;;     (((1 2 3) (pure "123"))
-;;      ((1 2 4) (pure "124"))
-;;      ((3 2 1) (pure "321"))))
 
 ;;;
 ;;; Top-Level Runners
