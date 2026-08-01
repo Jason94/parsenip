@@ -136,3 +136,29 @@
                               (partial (literal (#\f #\o #\o) 1))))
   (is (== (Some 0)
           (err-cursor result))))
+
+(define-test test-switch-success ()
+  (let result = (parse-source
+                 "foobar"
+                 (partial
+                  (switch
+                      (((#\a #\b)     "100")
+                       ((#\f #\o #\z) "200")
+                       ((#\f #\o #\o) "300")
+                       ((#\f #\g #\h) "400"))))))
+  (is (== (Some 3)
+          (partial-suc-cursor result)))
+  (is (== (Some "300")
+          (partial-suc-value result))))
+
+(define-test test-switch-failure ()
+  (let result = (parse-source
+                 "farfoo"
+                 (partial
+                  (switch
+                      (((#\a #\b)     "100")
+                       ((#\f #\o #\z) "200")
+                       ((#\f #\o #\o) "300")
+                       ((#\f #\g #\h) "400"))))))
+  (is (== (Some 0)
+          (err-cursor result))))

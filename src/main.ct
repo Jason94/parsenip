@@ -5,7 +5,9 @@
    #:parsenip/sources
    )
   (:import-from #:serapeum
-   #:parse-float)
+   #:parse-float
+   #:doplist
+   #:with-gensyms)
   (:import-from #:coalton/experimental/loops
    #:dorange
    #:dotimes)
@@ -44,6 +46,7 @@
    #:next-if
    #:next-token
    #:literal
+   #:switch
    #:parse-into
    #:count
    #:many
@@ -356,30 +359,6 @@ if it does not."
 does not."
     (next-if ƒx.(== x t))))
 
-(cl:defun literal-token-clause (tokens a s-sym c0-sym c-sym on-rec-sym on-s-sym all-tokens)
-  (cl:if (cl:null tokens)
-         `(,on-s-sym ,c-sym ,a)
-         (cl:let ((t-sym (cl:gensym "t"))
-                  (c2-sym (cl:gensym "c2")))
-           `(step-safe ,s-sym ,c-sym ƒ_e.(,on-rec-sym ,c0-sym e) (,t-sym ,c2-sym)
-             (if (== ,t-sym ,(cl:first tokens))
-                 ,(literal-token-clause (cl:rest tokens) a s-sym c0-sym c2-sym on-rec-sym on-s-sym all-tokens)
-                 (,on-rec-sym ,c0-sym ,(cl:format cl:nil "Failed to match literal: ~{~a~}" all-tokens)))))))
-
-
-(defmacro literal (tokens a)
-  "Parse the next tokens, succeeding if they match `tokens` exactly. Fails otherwise.
-Returns `a` if successful.
-
-Type: (Source :s :c :t) => ( :t ... ) * :a -> Parser :s :c :r :a"
-  (cl:let ((s-sym (cl:gensym "s"))
-           (c0-sym (cl:gensym "c0"))
-           (on-rec-sym (cl:gensym "on-rec"))
-           (on-s-sym (cl:gensym "on-s")))
-    `(Parser%
-      (fn (,s-sym ,c0-sym _ ,on-rec-sym ,on-s-sym)
-        ,(literal-token-clause tokens a s-sym c0-sym c0-sym on-rec-sym on-s-sym tokens)))))
-
 (coalton-toplevel
   (inline)
   (declare parse-into (Accumulator :v :f => :v :a * Parser :s :c :r :a -> Parser :s :c :r (:v :a)))
@@ -459,7 +438,7 @@ fails at all, `many-till` fails and backtracks."
          (run-parser% end s c on-un on-inner-rec-end on-inner-s-end)))))
 
   ;; TODO: This allows monomorphizing the `step` calls but prevents fusing `pred`.
-  ;; Maybe explore using a plain `for` loop inside of `skip-while`.
+  ;; Inline this back into skip-while once (monomorphize) gets fixed to descend properly.
   (declare skip-while-loop (Source :s :c :t => :s * :c * (:t -> Boolean) -> :c))
   (define (skip-while-loop s c pred)
     (let (values t? c?) = (step s c))
@@ -562,6 +541,122 @@ The parser fails if `p` fails, and terminates when `op` fails."
                                 ƒco.(on-op-s c o))))))
          (run-parser% p s c on-un on-rec on-term-suc)))))
   )
+
+;;;
+;;; `literal` macro
+;;; 
+
+;; TODO: Don't construct a closure every time. Just use one root closure.
+(cl:defun literal-token-clause (tokens a s-sym c0-sym c-sym on-rec-sym on-s-sym all-tokens)
+  (cl:if (cl:null tokens)
+         `(,on-s-sym ,c-sym ,a)
+         (cl:let ((t-sym (cl:gensym "t"))
+                  (c2-sym (cl:gensym "c2")))
+           `(step-safe ,s-sym ,c-sym ƒ_e.(,on-rec-sym ,c0-sym e) (,t-sym ,c2-sym)
+             (if (== ,t-sym ,(cl:first tokens))
+                 ,(literal-token-clause (cl:rest tokens) a s-sym c0-sym c2-sym on-rec-sym on-s-sym all-tokens)
+                 (,on-rec-sym ,c0-sym ,(cl:format cl:nil "Failed to match literal: ~{~a~}" all-tokens)))))))
+
+
+(defmacro literal (tokens a)
+  "Parse the next tokens, succeeding if they match `tokens` exactly. Fails otherwise.
+Returns `a` if successful.
+
+Type: (Source :s :c :t) => ( :t ... ) * :a -> Parser :s :c :r :a"
+  (cl:let ((s-sym (cl:gensym "s"))
+           (c0-sym (cl:gensym "c0"))
+           (on-rec-sym (cl:gensym "on-rec"))
+           (on-s-sym (cl:gensym "on-s")))
+    `(Parser%
+      (fn (,s-sym ,c0-sym _ ,on-rec-sym ,on-s-sym)
+        ,(literal-token-clause tokens a s-sym c0-sym c0-sym on-rec-sym on-s-sym tokens)))))
+
+;;;
+;;; `switch` macro
+;;; 
+
+;; (switch
+;;   ((1 2 3) (pure 123))
+;;   ((3 4 5) (pure 345)))
+
+;; Internally uses a plist tree, with results stored in nodes: (:result . result-form)
+
+(cl:defun descend-branches (tree tokens)
+  (cl:reverse
+   (cl:cons
+    tree
+    (cl:loop
+       :for rem := tokens :then (cl:rest rem)
+       :until (cl:null (cl:rest rem))
+       :for t := (cl:first rem) :then (cl:first rem)
+       :for branch := (cl:getf tree t) :then (cl:getf branch t)
+       :collect branch))))
+
+(cl:defun set-result (tree tokens result)
+  (cl:let* ((branches (descend-branches tree tokens))
+            (result-node (cl:cons :result result))
+            (targets (cons result-node branches)))
+    (cl:loop
+       :for rem-targets := targets :then (cl:rest rem-targets)
+       :for a := (cl:first rem-targets) :then b
+       :for b := (cl:second rem-targets) :then (cl:second rem-targets)
+       :for tokens_ := (cl:reverse tokens) :then (cl:rest tokens_)
+       :for t := (cl:first tokens_) :then (cl:first tokens_)
+       :do
+          (cl:setf (cl:getf b t) a)
+       :when (cl:null (cl:rest tokens_))
+         :return b)))
+
+(cl:defun build-tree (forms)
+  "Build a plist tree out of `forms`."
+  (cl:let ((tree cl:nil))
+    (cl:dolist (form forms)
+      (cl:let ((literal (cl:first form))
+               (result (cl:second form)))
+        (cl:when (cl:null literal)
+          (cl:error "Cannot switch on empty literal."))
+        (cl:setf tree (set-result tree literal result))))
+    tree))
+
+(cl:defun branch-result? (branch)
+  (cl:equal :result (cl:car branch)))
+
+(cl:defun branch-result-val (branch)
+  (cl:cdr branch))
+
+(cl:defun compile-branch-switch (key key-branch s-sym c0-sym on-rec-sym on-s-sym)
+  `(,key
+    ,(cl:if (branch-result? key-branch)
+            `(,on-s-sym ,c0-sym ,(branch-result-val key-branch))
+            (compile-branch key-branch s-sym c0-sym on-rec-sym on-s-sym))
+    ))
+
+(cl:defun compile-branch (branch s-sym c0-sym on-rec-sym on-s-sym)
+  "Compile a branch into step and switch code."
+    (with-gensyms (t-sym c2-sym)
+      `(step-safe ,s-sym ,c0-sym ,on-rec-sym (,t-sym ,c2-sym)
+        (match ,t-sym
+          ,@(cl:loop
+               :for rem-branch := branch :then (cl:rest (cl:rest rem-branch))
+               :for key := (cl:first rem-branch) :then (cl:first rem-branch)
+               :for key-branch := (cl:second rem-branch) :then (cl:second rem-branch)
+               :until (cl:null rem-branch)
+               :collect
+               (compile-branch-switch key key-branch s-sym c2-sym on-rec-sym on-s-sym))
+          (_ (,on-rec-sym ,c0-sym "Failed to switch on an expected literal."))))))
+
+(defmacro switch (forms)
+  (with-gensyms (s-sym c0-sym on-rec0-sym on-rec-sym on-s-sym)
+    `(Parser%
+      (fn (,s-sym ,c0-sym _ ,on-rec0-sym ,on-s-sym)
+        (let ,on-rec-sym = ƒ_e.(,on-rec0-sym ,c0-sym e))
+        ,(compile-branch (build-tree forms)
+                         s-sym c0-sym on-rec-sym on-s-sym)))))
+
+;; (switch
+;;     (((1 2 3) (pure "123"))
+;;      ((1 2 4) (pure "124"))
+;;      ((3 2 1) (pure "321"))))
 
 ;;;
 ;;; Top-Level Runners
