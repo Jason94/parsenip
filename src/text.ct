@@ -93,6 +93,23 @@
      (map ƒc.(s:parse-int (chars->str c))
           (many1 (next-if int-char?)))))
 
+  (declare next-ufix-loop (Source :s :c Char => :s * :c * UFix -> :c * UFix))
+  (define (next-ufix-loop s c x)
+    (let (values t? c?) = (step s c))
+    (match t?
+      ((None)
+       (values c x))
+      ((Some t)
+       (match (ch:digit->ufix t)
+         ((None)
+          (values c x))
+         ((Some d)
+          (match c?
+            ((None)
+             (values c x))
+            ((Some c)
+             (next-ufix-loop s c (+ (* 10 x) d)))))))))
+
   (inline)
   (declare next-ufix (Source :s :c Char => Void -> Parser :s :c :r UFix))
   (define (next-ufix)
@@ -105,22 +122,8 @@ is not parsed."
            ((None)
             (on-rec c0 "Failed to parse ufix value."))
            ((Some x)
-            (rec % ((c c)
-                    (x x))
-              (let (values t? c?) = (step s c))
-              (match t?
-                ((None)
-                 (on-s c x))
-                ((Some t)
-                 (match (ch:digit->ufix t)
-                   ((None)
-                    (on-s c x))
-                   ((Some d)
-                    (match c?
-                      ((None)
-                       (on-s c x))
-                      ((Some c)
-                       (% c (+ (* 10 x) d)))))))))))))))
+            (let (values c x) = (next-ufix-loop s c x))
+            (on-s c x)))))))
 
   (inline)
   (declare next-decimal (Source :s :c Char => Void -> Parser :s :c :r F64))

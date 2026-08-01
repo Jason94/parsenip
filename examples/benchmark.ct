@@ -159,12 +159,20 @@
 ;;   )
 ;; (cl:disassemble parse-expr)
 
-(pprint-coalton-codegen-types
-  (inline)
-  (monomorphize)
-  (declare next-ufix-src (Void -> Parser String UFix :r UFix))
-  (define (next-ufix-src)
-    (next-ufix)))
-(cl:disassemble next-ufix)
-;; (cl:disassemble (next-ufix)) - Errors because it needs source dictionary
-(cl:disassemble (next-ufix-src))
+;; (coalton-toplevel
+;;   (inline)
+;;   (monomorphize)
+;;   (declare next-ufix-src (Void -> Parser String UFix :r UFix))
+;;   (define (next-ufix-src)
+;;     (next-ufix)))
+;; (pprint-coalton-codegen-types
+;;   (inline)
+;;   (monomorphize)
+;;   (declare next-ufix-src (Void -> Parser String UFix :r UFix))
+;;   (define (next-ufix-src)
+;;     (next-ufix)))
+;; (cl:disassemble next-ufix)
+;; ;; (cl:disassemble (next-ufix)) - Errors because it needs source dictionary
+;; (cl:disassemble parsenip/text::next-ufix-loop)
+;; (cl:disassemble (next-ufix-src))
+;; (cl:disassemble next-ufix-loop#1370)
