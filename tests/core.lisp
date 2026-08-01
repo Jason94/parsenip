@@ -44,7 +44,7 @@
                                              (commit
                                               (next-token #\a)))
                                             (do
-                                             (literal "foo" Unit)
+                                             (literal (#\f #\o #\o) Unit)
                                              (eof)
                                              (pure #\z))))))
   (is (== (Some 1)
@@ -143,7 +143,7 @@
 
 (define-test test-literal-success ()
   (let result = (parse-source "foobar"
-                              (partial (literal "foo" 1))))
+                              (partial (literal (#\f #\o #\o) 1))))
   (is (== (Some 3)
           (partial-suc-cursor result)))
   (is (== (Some 1)
@@ -151,12 +151,12 @@
 
 (define-test test-literal-backtracks-on-mismatch ()
   (let result = (parse-source "fozbar"
-                              (partial (literal "foo" 1))))
+                              (partial (literal (#\f #\o #\o) 1))))
   (is (== (Some 0)
           (err-cursor result))))
 
 (define-test test-literal-backtracks-on-fail ()
   (let result = (parse-source "fo"
-                              (partial (literal "foo" 1))))
+                              (partial (literal (#\f #\o #\o) 1))))
   (is (== (Some 0)
           (err-cursor result))))

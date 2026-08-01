@@ -348,35 +348,33 @@ if it does not."
   (define (next-token t)
     "Parse the current token and advance the cursor by 1 if it matches `t`, failing if it
 does not."
-    (next-if ƒx.(== x t)))
+    (next-if ƒx.(== x t))))
 
-  (inline)
-  (declare literal ((it:IntoIterator :v :t) (Source :s :c :t) (Eq :t) => :v * :a -> Parser :s :c :r :a))
-  (define (literal tokens a)
-    "Parse the next tokens, succeeding if they match `tokens` exactly. Fails otherwise.
-Returns `a` if successful."
-    (Parser%
-     (fn (s c0 _on-un on-rec on-s)
-       (let it = (it:into-iter tokens))
-       (rec % ((c c0)
-               (next-t? (it:next! it)))
-         (match next-t?
-           ((None)
-            (on-s c a))
-           ((Some next-t)
-            (let (Tuple t? c?) = (step s c))
-            (match t?
-              ((None)
-               (on-rec c0 eof-err))
-              ((Some t)
-               (match c?
-                 ((None)
-                  (on-rec c0 eof-err))
-                 ((Some c)
-                  (if (== t next-t)
-                      (% c (it:next! it))
-                      (on-rec c0 "Unexpected token in literal."))))))))))))
+(cl:defun literal-token-clause (tokens a s-sym c0-sym c-sym on-rec-sym on-s-sym all-tokens)
+  (cl:if (cl:null tokens)
+         `(,on-s-sym ,c-sym ,a)
+         (cl:let ((t-sym (cl:gensym "t"))
+                  (c2-sym (cl:gensym "c2")))
+           `(step-safe ,s-sym ,c-sym ƒ_e.(,on-rec-sym ,c0-sym e) (,t-sym ,c2-sym)
+             (if (== ,t-sym ,(cl:first tokens))
+                 ,(literal-token-clause (cl:rest tokens) a s-sym c0-sym c2-sym on-rec-sym on-s-sym all-tokens)
+                 (,on-rec-sym ,c0-sym ,(cl:format cl:nil "Failed to match literal: ~{~a~}" all-tokens)))))))
 
+
+(defmacro literal (tokens a)
+  "Parse the next tokens, succeeding if they match `tokens` exactly. Fails otherwise.
+Returns `a` if successful.
+
+Type: (Source :s :c :t) => ( :t ... ) * :a -> Parser :s :c :r :a"
+  (cl:let ((s-sym (cl:gensym "s"))
+           (c0-sym (cl:gensym "c0"))
+           (on-rec-sym (cl:gensym "on-rec"))
+           (on-s-sym (cl:gensym "on-s")))
+    `(Parser%
+      (fn (,s-sym ,c0-sym _ ,on-rec-sym ,on-s-sym)
+        ,(literal-token-clause tokens a s-sym c0-sym c0-sym on-rec-sym on-s-sym tokens)))))
+
+(coalton-toplevel
   (inline)
   (declare parse-into (Accumulator :v :f => :v :a * Parser :s :c :r :a -> Parser :s :c :r (:v :a)))
   (define (parse-into acc p)
