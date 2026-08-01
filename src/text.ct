@@ -8,6 +8,7 @@
    #:parse-float)
   (:local-nicknames
    (:ch #:coalton/char)
+   (:c #:coalton/cell)
    (:s #:coalton/string)
    )
   (:export
@@ -97,9 +98,29 @@
   (define (next-ufix)
     "Parse the next unsigned integer. Doesn't accept any signs. Fails if a valid integer
 is not parsed."
-    (flatten-opt
-     (map ƒc.(>>= (s:parse-int (chars->str c)) tryinto)
-          (many1 (next-if ch:ascii-digit?)))))
+    (Parser%
+     (fn (s c0 _ on-rec on-s)
+       (step-safe s c0 on-rec (t c)
+         (match (ch:digit->ufix t) 
+           ((None)
+            (on-rec c0 "Failed to parse ufix value."))
+           ((Some x)
+            (rec % ((c c)
+                    (x x))
+              (let (values t? c?) = (step s c))
+              (match t?
+                ((None)
+                 (on-s c x))
+                ((Some t)
+                 (match (ch:digit->ufix t)
+                   ((None)
+                    (on-s c x))
+                   ((Some d)
+                    (match c?
+                      ((None)
+                       (on-s c x))
+                      ((Some c)
+                       (% c (+ (* 10 x) d)))))))))))))))
 
   (inline)
   (declare next-decimal (Source :s :c Char => Void -> Parser :s :c :r F64))

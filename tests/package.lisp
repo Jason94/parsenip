@@ -14,5 +14,6 @@
    :packages '(
                #:parsenip/tests/sources-fiasco
                #:parsenip/tests/core-fiasco
+               #:parsenip/tests/text-fiasco
                )
    :interactive cl:t))

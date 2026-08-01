@@ -59,6 +59,11 @@
    ;; Top-Level Runners
    #:parse-source
    #:parse-file-chars!
+
+   ;; TODO: These probably shouldn't be library-public
+   #:Parser%
+   #:step-safe
+   #:run-parser%
    ))
 
 (cl:in-package #:parsenip)
@@ -196,7 +201,7 @@ transformed to an `:r`."
   (cl:let ((t?-sym (cl:gensym))
            (c?-sym (cl:gensym)))
     `(progn
-       (let (Tuple ,t?-sym ,c?-sym) = (step ,s ,c))
+       (let (values ,t?-sym ,c?-sym) = (step ,s ,c))
        (match ,t?-sym
          ((None)
           (,on-rec ,c eof-err))

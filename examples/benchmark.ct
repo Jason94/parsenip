@@ -158,3 +158,13 @@
 ;;     (take-left (sum_) (eof)))
 ;;   )
 ;; (cl:disassemble parse-expr)
+
+(pprint-coalton-codegen-types
+  (inline)
+  (monomorphize)
+  (declare next-ufix-src (Void -> Parser String UFix :r UFix))
+  (define (next-ufix-src)
+    (next-ufix)))
+(cl:disassemble next-ufix)
+;; (cl:disassemble (next-ufix)) - Errors because it needs source dictionary
+(cl:disassemble (next-ufix-src))

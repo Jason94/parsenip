@@ -2,6 +2,7 @@
   (:use #:coalton #:coalton-prelude #:coalton-testing
    #:parsenip
    #:parsenip/sources
+   #:parsenip/tests/utils
    )
   (:import-from #:coalton/result
    #:err?))
@@ -11,31 +12,6 @@
 
 (fiasco:define-test-package #:parsenip/tests/core-fiasco)
 (coalton-fiasco-init #:parsenip/tests/core-fiasco)
-
-(coalton-toplevel
-  (declare err-cursor (ParseResult :c :r -> Optional :c))
-  (define (err-cursor r)
-    (match r
-      ((Ok _)
-       None)
-      ((Err (Tuple3 c _ _))
-       (Some c))))
-
-  (declare partial-suc-cursor (ParseResult :c (Tuple :c :r) -> Optional :c))
-  (define (partial-suc-cursor r)
-    (match r
-      ((Err _)
-       None)
-      ((Ok (Tuple c _))
-       (Some c))))
-
-  (declare partial-suc-value (ParseResult :c (Tuple :c :r) -> Optional :r))
-  (define (partial-suc-value r)
-    (match r
-      ((Err _)
-       None)
-      ((Ok (Tuple _ v))
-       (Some v)))))
 
 (define-test test-commit-locks-alt-branch-and-cursor ()
   (let result = (parse-source "foo"

@@ -21,9 +21,10 @@
   :components ((:module "tests"
                 :serial t
                 :components
-                (
+                ((:file "utils")
                  (:file "sources")
                  (:file "core")
+                 (:file "text")
                  (:file "package")
                  )))
   :perform (test-op (op c)
