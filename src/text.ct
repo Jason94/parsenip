@@ -22,6 +22,7 @@
    #:next-int
    #:next-ufix
    #:next-decimal
+   #:literal-string
    ))
 
 (cl:in-package #:parsenip/text)
@@ -107,3 +108,10 @@ is not parsed."
     (flatten-opt
      (map ƒc.(parse-float? (chars->str c))
           (many1 (next-if dec-char?))))))
+
+(defmacro literal-string (tokens a)
+  "Parse the next tokens, succeeding if they match `tokens` exactly. Fails otherwise.
+Returns `a` if successful.
+
+Type: (Source :s :c Char) => String * :a -> Parser :s :c :r :a"
+  `(literal ,(cl:coerce tokens 'cl:list) ,a))

@@ -51,14 +51,14 @@
   (inline)
   (define (sum-op)
     (lexeme
-     (alt (literal "+" ƒab.(Bin Add a b))
-          (literal "-" ƒab.(Bin Sub a b)))))
+     (alt (literal-string "+" ƒab.(Bin Add a b))
+          (literal-string "-" ƒab.(Bin Sub a b)))))
 
   (inline)
   (define (prod-op)
     (lexeme
-     (alt (literal "*" ƒab.(Bin Mul a b))
-          (literal "/" ƒab.(Bin Divd a b)))))
+     (alt (literal-string "*" ƒab.(Bin Mul a b))
+          (literal-string "/" ƒab.(Bin Divd a b)))))
   
   (inline)
   (define (sum_)
