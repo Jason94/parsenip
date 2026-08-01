@@ -1,0 +1,165 @@
+(cl:defpackage #:parsenip/bytes
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:parsenip/sources
+   #:parsenip)
+  (:import-from #:serapeum
+   #:parse-float)
+  (:local-nicknames
+   (:ch #:coalton/char)
+   (:c #:coalton/cell)
+   (:s #:coalton/string)
+   )
+  (:export
+   #:ws-char?
+   #:digit-char?
+   #:char-code
+   
+   #:skip-ws
+   #:next-ufix
+   #:literal-string
+   #:switch-string
+   ))
+
+(cl:in-package #:parsenip/bytes)
+
+(cl:declaim (cl:optimize (cl:speed 3) (cl:debug 0) (cl:safety 0)))
+
+(named-readtables:in-readtable coalton:coalton)
+
+;;;
+;;; Constants
+;;; 
+
+;; Workaround for: https://github.com/coalton-lang/coalton/issues/2035
+(coalton-toplevel
+  (inline)
+  (declare +zero-ascii+ (Void -> U8))
+  (define (+zero-ascii+) 48)
+
+  (inline)
+  (declare +nine-ascii+ (Void -> U8))
+  (define (+nine-ascii+) 57)
+
+  (inline)
+  (declare +space-ascii+ (Void -> U8))
+  (define (+space-ascii+) 32)
+
+  (inline)
+  (declare +newline-ascii+ (Void -> U8))
+  (define (+newline-ascii+) 10)
+
+  (inline)
+  (declare +tab-ascii+ (Void -> U8))
+  (define (+tab-ascii+) 9))
+
+;;;
+;;; U8 Functions
+;;; 
+
+(coalton-toplevel
+  (inline)
+  (declare ws-char? (U8 -> Boolean))
+  (define (ws-char? c)
+    "Return True if `c` is a whitespace character. Included: space, newline, and tab."
+    (cond
+      ((== c (+space-ascii+)) True)
+      ((== c (+newline-ascii+)) True)
+      ((== c (+tab-ascii+)) True)
+      (True False)))
+
+  (inline)
+  (declare digit-char? (U8 -> Boolean))
+  (define (digit-char? c)
+    "Return True if `c` is a digit char. Includes 0-9."
+    (and (>= c (+zero-ascii+))
+         (>= (+nine-ascii+) c)))
+
+  (inline)
+  (declare char-code (Char -> U8))
+  (define (char-code c)
+    "Convert `c` to its ASCII representation."
+    (lisp (-> U8) (c)
+      (cl:char-code c)))
+  )
+
+(coalton-toplevel
+  (inline)
+  (declare skip-ws (Source :s :c U8 => Void -> Parser :s :c :r Unit))
+  (define (skip-ws)
+    (skip-while ws-char?))
+
+  (inline)
+  (declare accumulate-digit (UFix * U8 -> UFix))
+  (define (accumulate-digit x d)
+    "Assumes `d` is a valid non-ascii digit (0-9) and the result fits in UFix."
+    (lisp (-> UFix) (x d)
+      (cl:the cl:fixnum
+              (cl:+
+               (cl:the cl:fixnum
+                       (cl:* x 10))
+               d))))
+
+  (declare next-ufix-loop (Source :s :c U8 => :s * :c * UFix -> :c * UFix))
+  (define (next-ufix-loop s c x)
+    (let (values t? c?) = (step s c))
+    (match t?
+      ((None)
+       (values c x))
+      ((Some t)
+       (let d = (- t (+zero-ascii+)))
+       ;; Test if t is an actual ascii digit
+       (if (<= d 9)
+           (match c?
+             ((None)
+              (values c x))
+             ((Some c)
+              (next-ufix-loop s c (accumulate-digit x d))))
+           (values c x)))))
+
+  (inline)
+  (declare next-ufix (Source :s :c U8 => Void -> Parser :s :c :r UFix))
+  (define (next-ufix)
+    "Parse the next unsigned integer. Doesn't accept any signs. Fails if a valid integer
+is not parsed."
+    (Parser%
+     (fn (s c0 _ on-rec on-s)
+       (step-safe s c0 on-rec (t c)
+         (progn
+           (let x = (- t (+zero-ascii+)))
+           (let x = (lisp (-> UFix) (x)
+                      x))
+           ;; Test if t is an actual ascii digit
+           (if (<= x 9)
+               (progn
+                 (let (values c x) = (next-ufix-loop s c x))
+                 (on-s c x))
+               (on-rec c0 "Failed to parse ufix value.")))))))
+  )
+
+(defmacro literal-string (tokens a)
+  "Parse the next tokens, succeeding if they match `tokens` exactly. Fails otherwise.
+Returns `a` if successful.
+
+Type: (Source :s :c U8) => String * :a -> Parser :s :c :r :a"
+  `(literal ,(cl:mapcar #'cl:char-code
+                        (cl:coerce tokens 'cl:list))
+    ,a))
+
+(defmacro switch-string (forms)
+  "Match against one or more string literal forms.
+
+Example:
+(switch-string
+    ((\"123\" (pure 123))
+     (\"124\" (pure 124))
+     (\"321\" (parse-321))))"
+  `(switch
+       ,(cl:mapcar (cl:lambda (form)
+                     (cl:let ((literal (cl:first form))
+                              (result (cl:second form)))
+                       `(,(cl:mapcar #'cl:char-code
+                                     (cl:coerce literal 'cl:list))
+                         ,result)))
+         forms)))

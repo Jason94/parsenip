@@ -8,6 +8,7 @@
    (:ct-file "sources")
    (:ct-file "main")
    (:ct-file "text")
+   (:ct-file "bytes")
   )
   :in-order-to ((test-op (test-op "parsenip/tests")))
 )
@@ -48,5 +49,6 @@
   :depends-on ("parsenip" "flamegraph")
   :components ((:module "examples"
                 :serial t
-                :components ((:ct-file "benchmark"))))
+                :components ((:ct-file "benchmark")
+                             (:ct-file "benchmark-bytes"))))
   )

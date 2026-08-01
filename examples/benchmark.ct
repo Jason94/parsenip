@@ -119,7 +119,7 @@
 
 (coalton-toplevel
   (monomorphize)
-  (declare parse-expr-file-bulk (String -> ParseResult UFix Expr))
+  (declare parse-expr-file-bulk (String -> Expr))
   (define (parse-expr-file-bulk filename)
     (let tokens =
       (lisp (-> String) (filename)
@@ -127,7 +127,12 @@
           (cl:let ((buffer (cl:make-string (cl:file-length fs))))
             (cl:read-sequence buffer fs)
             buffer))))
-    (parse-source tokens (parse-expr))))
+    (match
+        (parse-source tokens (parse-expr))
+      ((Err _)
+       (error "Parsing failed"))
+      ((Ok expr)
+       expr))))
   
 (cl:defun run-bench-bulk (filename)
   (cl:print "timing...")
@@ -140,82 +145,3 @@
               (lisp (-> String) ()
                 filename))))
   (cl:values))
-
-;; (cl:disassemble parse-expr-file-bulk)
-;;
-
-(coalton-toplevel
-  (inline)
-  (monomorphize)
-  (declare pegged-atm (Void -> Parser String UFix :r Expr))
-  (define (pegged-atm)
-    (atm)))
-           
-(cl:disassemble #'parsenip/text::next-ufix-loop)
-(cl:disassemble (coalton (pegged-atm)))
-(cl:let ((step-function
-           (coalton
-             (the
-              (String * UFix
-                      -> (Optional Char) * (Optional UFix))
-              step))))
-  (cl:format cl:t "~&Target: ~S~%"
-             (sb-kernel:%fun-name
-              (sb-kernel:%fun-fun step-function)))
-  (cl:disassemble step-function))
-
-(coalton-toplevel
-  (inline)
-  (monomorphize)
-  (declare pegged-next-ufix (Void -> Parser String UFix :r UFIx))
-  (define (pegged-next-ufix)
-    (next-ufix))
-  
-  (inline)
-  (monomorphize)
-  (declare pegged-next-ufix-lp (String * UFix * UFix -> UFix * UFix))
-  (define (pegged-next-ufix-lp s c x)
-    (let (values t? c?) = (step s c))
-    (match t?
-      ((None)
-       (values c x))
-      ((Some t)
-       (match (ch:digit->ufix t)
-         ((None)
-          (values c x))
-         ((Some d)
-          (match c?
-            ((None)
-             (values c x))
-            ((Some c)
-             (pegged-next-ufix-lp s c (+ (* 10 x) d))))))))))
-
-(cl:disassemble (coalton (pegged-next-ufix)))
-(cl:disassemble pegged-next-ufix-lp)
-;; (cl:disassemble NEXT-UFIX-LOOP#11902)
-
-(coalton-toplevel
-  (monomorphize)
-  (declare pegged-parse-expr (Void -> Parser String UFix :r Expr))
-  (define (pegged-parse-expr)
-    (parse-expr)))
-
-(cl:disassemble (coalton (pegged-parse-expr)))
-
-(coalton-toplevel
-  (monomorphize)
-  (declare pegged-sum (Void -> Parser String UFix :r Expr))
-  (define (pegged-sum)
-    (sum_)))
-
-(cl:disassemble (coalton (pegged-sum)))
-
-(coalton-toplevel
-  (monomorphize)
-  (declare pegged-prod
-    (Void -> Parser String UFix :r Expr))
-  (define (pegged-prod)
-    (prod)))
-
-(cl:disassemble (coalton (pegged-prod)))
-;; (cl:disassemble next-ufix-loop#14998)

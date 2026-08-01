@@ -145,7 +145,7 @@ Type: (Source :s :c Char) => String * :a -> Parser :s :c :r :a"
   "Match against one or more string literal forms.
 
 Example:
-(switch
+(switch-string
     ((\"123\" (pure 123))
      (\"124\" (pure 124))
      (\"321\" (parse-321))))"

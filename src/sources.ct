@@ -281,6 +281,34 @@ reclamation of memory for unbounded sources."
       (values))))
 
 (coalton-toplevel
+  (define-instance (Source (la:LispArray :t) UFix :t)
+    (inline)
+    (define (initial-cursor _)
+      0)
+    (inline)
+    (define (advance-n arr i n)
+      (let next = (+ i n))
+      ;; > instead of >= because EOF must be a valid cursor position.
+      (if (> next (la:length arr))
+          None
+          (Some next)))
+    (inline)
+    (define (curse arr i)
+      (if (< i (la:length arr))
+          (Some (la:aref arr i))
+          None))
+    (inline)
+    (define (step arr i)
+      (let next = (1+ i))
+      ;; > instead of >= because EOF must be a valid cursor position.
+      (if (> next (la:length arr))
+          (values None None)
+          (values (Some (la:aref arr i)) (Some next))))
+    (inline)
+    (define (reclaim! _ _)
+      (values))))
+
+(coalton-toplevel
   (define-instance (Source String UFix Char)
     (inline)
     (define (initial-cursor _)
