@@ -1,6 +1,6 @@
 (asdf:defsystem "parsenip"
   :defsystem-depends-on ("coalton-asdf")
-  :depends-on ("serapeum" "coalton" "coalton-io")
+  :depends-on ("serapeum" "coalton")
   :pathname "src/"
   :serial t
   :components
