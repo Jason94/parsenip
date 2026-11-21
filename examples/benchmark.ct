@@ -7,12 +7,11 @@
    #:parsenip
    #:parsenip/text)
   (:local-nicknames
-   (:ch #:coalton/char)
-   (:la #:coalton/lisparray)
    (:fl #:coalton/file)
    )
   (:export
-   #:run-bench))
+   #:parse-expr-file
+   #:parse-expr-file-bulk))
 
 (cl:in-package #:parsenip/examples/benchmark)
 

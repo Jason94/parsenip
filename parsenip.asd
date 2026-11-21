@@ -52,3 +52,15 @@
                 :components ((:ct-file "benchmark")
                              (:ct-file "benchmark-bytes"))))
   )
+
+(defsystem "parsenip/benchmarks"
+  :author "Jason Walker"
+  :license "MIT"
+  :depends-on ("parsenip" "parsenip/examples" "flamegraph" "trivial-benchmark")
+  :components ((:module "benchmarks"
+                :serial t
+                :components ((:file "package")
+                             (:file "benchmark")
+                             (:file "benchmark-bytes")
+                             (:file "benchmark-support")
+                             ))))
